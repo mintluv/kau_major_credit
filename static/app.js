@@ -181,7 +181,7 @@ function initForms() {
   if (btnManualAdd) btnManualAdd.addEventListener("click", runManualAdd);
 }
 
-// Crawling Execution Handler
+// Crawling Execution Handler (Real-time Streaming)
 async function handleCrawl() {
   const terminalCard = document.getElementById("terminal-card");
   const terminalBody = document.getElementById("terminal-body");
@@ -190,8 +190,9 @@ async function handleCrawl() {
 
   terminalCard.classList.remove("hidden");
   terminalBody.textContent = "🚀 서버 연결 및 Playwright 웹 크롤러 세션 준비 중...\n";
-  statusIndicator.textContent = "실행 중...";
-  statusIndicator.style.color = "#38bdf8";
+  statusIndicator.textContent = "진행 중...";
+  statusIndicator.style.background = "var(--sun)";
+  statusIndicator.style.color = "var(--on-sun)";
   submitBtn.disabled = true;
 
   // 기존 성적 리스트 즉시 초기화
@@ -209,38 +210,77 @@ async function handleCrawl() {
     grade_url: document.getElementById("grade_url").value || null
   };
 
+  function appendLog(text) {
+    terminalBody.textContent += text + "\n";
+    terminalBody.scrollTop = terminalBody.scrollHeight;
+  }
+
   try {
-    const response = await fetch("/api/crawl", {
+    const response = await fetch("/api/crawl-stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
-    const data = await response.json();
-
-    if (data.logs) {
-      terminalBody.textContent = data.logs.join("\n") + "\n";
+    if (!response.ok || !response.body) {
+      throw new Error(`HTTP ${response.status}: 스트리밍 응답 실패`);
     }
 
-    if (data.success) {
-      statusIndicator.textContent = "수집 완료";
-      statusIndicator.style.color = "#4ade80";
-      if (data.courses && data.courses.length > 0) {
-        addCourses(data.courses);
-        terminalBody.textContent += `\n🎉 성공적으로 ${data.courses.length}개 과목 성적을 불러왔습니다!`;
-      } else {
-        terminalBody.textContent += "\n⚠️ 로그인 또는 성적 표 탐색은 완료되었으나 과목 데이터를 찾지 못했습니다. 텍스트 복사-붙여넣기 탭을 활용해 보세요.";
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    let finalResult = null;
+
+    terminalBody.textContent = ""; // Clear initial text and stream
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop(); // Keep last partial line in buffer
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data:")) continue;
+
+        try {
+          const jsonStr = trimmed.replace(/^data:\s*/, "");
+          const ev = JSON.parse(jsonStr);
+
+          if (ev.type === "log") {
+            appendLog(ev.message);
+          } else if (ev.type === "done") {
+            finalResult = ev.result;
+          }
+        } catch (e) {
+          // ignore unparsable fragments
+        }
       }
-    } else {
-      statusIndicator.textContent = "오류 발생";
-      statusIndicator.style.color = "#f87171";
-      terminalBody.textContent += `\n❌ 크롤링 실패: ${data.error || "알 수 없는 오류"}`;
+    }
+
+    if (finalResult) {
+      if (finalResult.success) {
+        statusIndicator.textContent = "수집 완료";
+        statusIndicator.style.background = "#b8f0ca";
+        statusIndicator.style.color = "#164a25";
+        if (finalResult.courses && finalResult.courses.length > 0) {
+          addCourses(finalResult.courses);
+        }
+      } else {
+        statusIndicator.textContent = "오류 발생";
+        statusIndicator.style.background = "var(--rose)";
+        statusIndicator.style.color = "var(--on-rose)";
+        appendLog(`\n❌ 크롤링 실패: ${finalResult.error || "알 수 없는 오류"}`);
+      }
     }
 
   } catch (err) {
     statusIndicator.textContent = "통신 에러";
-    statusIndicator.style.color = "#f87171";
-    terminalBody.textContent += `\n❌ 서버 통신 오류: ${err.message}`;
+    statusIndicator.style.background = "var(--rose)";
+    statusIndicator.style.color = "var(--on-rose)";
+    appendLog(`\n❌ 서버 통신 오류: ${err.message}`);
   } finally {
     submitBtn.disabled = false;
   }

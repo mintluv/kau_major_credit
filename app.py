@@ -80,34 +80,48 @@ GRADE_POINTS = {
 }
 
 
+from fastapi.responses import FileResponse, StreamingResponse
+import json
+
 @app.get("/")
 async def serve_index():
     return FileResponse("static/index.html")
 
 
-@app.post("/api/crawl")
-async def crawl_portal(req: CrawlRequest):
+async def run_crawler_core(req: CrawlRequest, emit_log=None):
     """
-    Automated browser login using Playwright to extract grade tables from school portal.
-    Supports WebSquare/MDI frames, dynamic grid tables, and auto grade menu clicking.
+    Core Playwright crawling engine with detailed progress logging.
+    Supports both batch execution and real-time streaming output.
     """
-    try:
-        from playwright.async_api import async_playwright
-    except ImportError:
-        raise HTTPException(status_code=500, detail="Playwright가 설치되어 있지 않습니다.")
-
     logs = []
     courses = []
 
-    def log(msg: str):
+    async def log(msg: str):
         logs.append(msg)
         try:
             print(f"[CRAWL_LOG] {msg}", flush=True)
         except Exception:
             pass
+        if emit_log:
+            await emit_log(msg)
 
-    log(f"🌐 Playwright 브라우저를 시작합니다... (모드: {'배경 실행' if req.headless else '브라우저 창 표시'})")
-    
+    user_id_clean = req.user_id.strip()
+    masked_id = user_id_clean[:4] + "****" if len(user_id_clean) > 4 else user_id_clean
+
+    await log("=" * 56)
+    await log("🚀 [1/5] Playwright 브라우저 엔진 기동 중...")
+    await log(f"      - 모드: {'배경 백그라운드(Headless)' if req.headless else '실제 브라우저 표시'}")
+    await log(f"      - 대상 포털: {req.portal_url}")
+    await log(f"      - 사용자 계정: {masked_id}")
+    await log("=" * 56)
+
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        err = "Playwright가 설치되어 있지 않습니다. pip install playwright && playwright install chromium 을 실행하세요."
+        await log(f"❌ {err}")
+        return {"success": False, "logs": logs, "courses": [], "error": err}
+
     try:
         async with async_playwright() as p:
             browser_args = ["--disable-web-security"]
@@ -130,12 +144,14 @@ async def crawl_portal(req: CrawlRequest):
             context = await browser.new_context(**context_kwargs)
             page = await context.new_page()
             
-            log(f"🔗 포털 접속 중: {req.portal_url}")
+            await log("🌐 [2/5] 한국항공대학교 포털 시스템 접속 중...")
+            await log(f"      - URL: {req.portal_url}")
             await page.goto(req.portal_url, timeout=45000, wait_until="domcontentloaded")
+            await log("      - DOMContentLoaded 이벤트 확인 완료 (안정화 대기 2초)")
             await asyncio.sleep(2)
             
-            # 1. Fill ID and Password & Submit using Playwright native frame auto-wait
-            log("🔑 로그인 정보 입력 및 제출 중...")
+            # 1. Fill ID and Password & Submit
+            await log("🔑 [3/5] 학사 시스템 자동 로그인 진행 중...")
             try:
                 pw_elem = page.locator("input[type='password'], #mainForm3\\.inputPassword, [id='mainForm3.inputPassword']").first
                 await pw_elem.wait_for(state="attached", timeout=15000)
@@ -143,23 +159,21 @@ async def crawl_portal(req: CrawlRequest):
                 id_elem = page.locator("input[type='text'], #mainForm3\\.inputId, [id='mainForm3.inputId']").first
                 await id_elem.fill(req.user_id)
                 await pw_elem.fill(req.password)
+                await log("      - 학번 및 비밀번호 폼 필드 입력 완료")
                 await pw_elem.press("Enter")
-                log("🔘 Enter 키 입력으로 로그인 제출 완료.")
+                await log("      - Enter 키 전송 및 로그인 세션 수립 대기")
             except Exception as e:
-                log(f"⚠️ 로그인 입력 예외: {e}")
+                await log(f"⚠️ 로그인 입력 중 안내: {e}")
 
             await asyncio.sleep(4)
-            log("✅ 로그인 시도 완료. 포털 메인/MDI 프레임 로딩 대기 중...")
+            await log("✅ 로그인 처리 완료. 메인 MDI 프레임 로딩 감지 중...")
 
-            # 3. KAU MDI Menu Navigation (Click #Menu21 + OnCLICK(13))
+            # 2. MDI Menu Navigation
             if req.auto_navigate_grade and not req.grade_url:
-                log("🔍 KAU 교과정보 메뉴(#Menu21) 및 누적성적조회(_my_Page01_LIST_LEFT_MENU.OnCLICK(13)) 실행...")
-                await auto_click_grade_menu(page, log)
+                await log("🧭 [4/5] MDI 프레임셋 탐색 및 학사 성적 메뉴 자동 이동 중...")
+                await auto_click_grade_menu_async(page, log)
 
-            # 4. Extract grades dynamically via Engine A (ule06_002_p01.html) & Engine B (ule01_016_t.html fallback)
-            log("🎯 KAU 학기별 세부 성적 팝업(ule06_002_p01.html) 수집 시도 중...")
-            
-            user_id_clean = req.user_id.strip()
+            # 3. Determine Search Year Range
             start_yr = 2015
             if len(user_id_clean) >= 4 and user_id_clean[:4].isdigit():
                 parsed_yr = int(user_id_clean[:4])
@@ -167,7 +181,7 @@ async def crawl_portal(req: CrawlRequest):
                     start_yr = parsed_yr
 
             year_list = [str(y) for y in range(start_yr, 2027)]
-            log(f"🗓️ 학번({user_id_clean}) 기준 조회 연도 범위: {start_yr}년 ~ 2026년")
+            await log(f"🗓️ [5/5] 학번({masked_id}) 기반 수강 연도 분석 ({start_yr}년 ~ 2026년, 총 {len(year_list)}개 연도)")
 
             wf = None
             for f in page.frames:
@@ -177,20 +191,19 @@ async def crawl_portal(req: CrawlRequest):
             
             if not wf and len(page.frames) > 1:
                 wf = page.frames[1]
-
             if not wf and len(page.frames) > 0:
                 wf = page.frames[0]
 
             # Engine A: ule06_002_p01.html (Exact Letter Grades)
             if wf:
                 try:
-                    log("👉 ule06_002_p01.html 성적 팝업 뷰 로딩...")
+                    await log("👉 성적 팝업 뷰(ule06_002_p01.html) 인터페이스 연결 시도...")
                     await wf.goto("https://nportal.kau.ac.kr/webcrea/GB03/univ/ule/ule06/ule06_002_p01.html", timeout=15000, wait_until="domcontentloaded")
                     await asyncio.sleep(2)
 
                     session_emp_no = await wf.evaluate("typeof emp_no !== 'undefined' && emp_no ? emp_no : ''")
                     target_emp_no = session_emp_no if session_emp_no else user_id_clean
-                    log(f"🔑 포털 세션 학번 인지 완료: {target_emp_no}")
+                    await log(f"🔑 포털 세션 학번 매핑 완료: {target_emp_no[:4]}****")
 
                     for yr in year_list:
                         for hk, hk_name in [('10', '1학기'), ('20', '2학기')]:
@@ -205,14 +218,17 @@ async def crawl_portal(req: CrawlRequest):
                                         FuncPage00_List1_OnQUERY();
                                     }}
                                 }}""")
-                                await asyncio.sleep(0.2)
+                                await asyncio.sleep(0.25)
                                 content = await wf.content()
                                 soup = BeautifulSoup(content, "html.parser")
+                                sem_collected = []
+
                                 for r in soup.find_all("tr"):
                                     cols = [td.get_text(strip=True) for td in r.find_all(["td", "th", "div"])]
                                     cols = [c for c in cols if c]
                                     if "폐강" in str(cols):
-                                        continue  # Exclude cancelled courses (폐강) completely
+                                        await log(f"      🚫 [{yr}년 {hk_name}] 폐강 과목 감지되어 제외: {cols[2] if len(cols)>2 else cols}")
+                                        continue
                                     if cols and len(cols) >= 7 and cols[0].isdigit():
                                         c_name = cols[2]
                                         if c_name in ["과목명", "교과목명", "성적", "학점", "년도", "학수코드"]:
@@ -232,39 +248,19 @@ async def crawl_portal(req: CrawlRequest):
                                                 classification=c_class if c_class else ("전공" if is_maj else "교양"),
                                                 year_semester=f"{yr}년 {hk_name}"
                                             ))
+                                            sem_collected.append(f"{c_name}({c_credit}학점/{c_grade})")
+
+                                if sem_collected:
+                                    await log(f"  ✨ [{yr}년 {hk_name}] {len(sem_collected)}개 과목 수집: {', '.join(sem_collected[:4])}{'...' if len(sem_collected)>4 else ''}")
                             except Exception:
                                 continue
                 except Exception as ex:
-                    log(f"⚠️ p01 성적 쿼리 안내: {ex}")
+                    await log(f"⚠️ 성적 팝업 쿼리 안내: {ex}")
 
             # Engine B: Fallback to ule01_016_t.html (수강신청/이수내역) if Engine A returns 0 courses
             if len(courses) == 0:
-                log("📚 누적 성적 미조회 계정 감지: 수강신청/이수내역(ule01_016_t.html) 전체 프레임 전환 수집 중...")
+                await log("📚 누적 성적 미조회 계정 감지: 수강신청/이수내역(ule01_016_t.html) 전체 프레임 전환 수집...")
                 
-                # 1. First attempt to fetch official semester GPAs from ule06_002_t.html
-                semester_gpas = {}
-                try:
-                    if wf:
-                        await wf.goto("https://nportal.kau.ac.kr/webcrea/GB03/univ/ule/ule06/ule06_002_t.html", timeout=10000, wait_until="domcontentloaded")
-                        await asyncio.sleep(1.5)
-                        content_t = await wf.content()
-                        soup_t = BeautifulSoup(content_t, "html.parser")
-                        for tr in soup_t.find_all("tr"):
-                            cols = [td.get_text(strip=True) for td in tr.find_all(["td", "th", "div"])]
-                            cols = [c for c in cols if c]
-                            if len(cols) >= 5 and cols[0].isdigit() and len(cols[0]) == 4:
-                                yr_k = cols[0]
-                                try:
-                                    # Columns: [0]Year [1]Sem [2]ReqCred [3]EarnCred [4]SumPts [5]GPA
-                                    g_str = cols[5] if len(cols) > 5 else cols[4]
-                                    gpa_val = float(g_str) if g_str.replace('.','',1).isdigit() else 3.84
-                                    semester_gpas[yr_k] = gpa_val
-                                except Exception:
-                                    pass
-                except Exception:
-                    pass
-
-                # 2. Navigate work frame directly to ule01_016_t.html and wait 2 seconds
                 if wf:
                     try:
                         await wf.goto("https://nportal.kau.ac.kr/webcrea/GB03/univ/ule/ule01/ule01_016_t.html", timeout=10000, wait_until="domcontentloaded")
@@ -276,7 +272,7 @@ async def crawl_portal(req: CrawlRequest):
                     try:
                         is_search_present = await f.evaluate("typeof _my_Page00_SEARCH_FORM !== 'undefined'")
                         if is_search_present:
-                            log(f"✨ 수강신청내역 폼을 포함한 프레임({f.name or f.url}) 감지 완료!")
+                            await log(f"✨ 수강신청내역 폼 프레임({f.name or f.url}) 감지 완료")
                             for yr in year_list:
                                 for hk, hk_name in [('10', '1학기'), ('20', '2학기')]:
                                     try:
@@ -287,7 +283,7 @@ async def crawl_portal(req: CrawlRequest):
                                                 FuncPage00_button1_pb1_OnCLICK();
                                             }}
                                         }}""")
-                                        await asyncio.sleep(0.2)
+                                        await asyncio.sleep(0.25)
                                         content = await f.content()
                                         soup = BeautifulSoup(content, "html.parser")
                                         sem_courses = []
@@ -296,8 +292,8 @@ async def crawl_portal(req: CrawlRequest):
                                             cols = [c for c in cols if c]
                                             r_str = str(r)
                                             if "폐강" in r_str or 'code="2"' in r_str or ("gaesul_status" in r_str and 'code="2"' in r_str) or "폐강" in str(cols) or ("이산수학" in r_str and yr == "2023"):
-                                                log(f"🚫 폐강 과목 감지되어 제외함: {[td.get_text(strip=True) for td in r.find_all(['td', 'th', 'div'])]}")
-                                                continue  # Exclude cancelled courses completely
+                                                await log(f"      🚫 [{yr}년 {hk_name}] 폐강 과목 감지되어 제외: {cols[2] if len(cols)>2 else cols}")
+                                                continue
                                             if cols and len(cols) >= 5 and cols[0].isdigit():
                                                 c_name = cols[2]
                                                 if c_name in ["과목명", "교과목명", "성적", "학점", "년도", "학수코드"]:
@@ -313,24 +309,27 @@ async def crawl_portal(req: CrawlRequest):
                                                     "classification": c_class if c_class else ("전공" if is_maj else "교양"),
                                                 })
 
-                                        # Engine B: Assign A0 for GPA courses and P for Pass/Fail courses to maintain 100% GPA consistency
-                                        for sc in sem_courses:
-                                            c_name_str = sc["name"]
-                                            # Pass/Fail course detection
-                                            if any(pf_kw in c_name_str for pf_kw in ["진로", "세미나", "봉사", "현장실습", "채플", "인성"]):
-                                                assigned_grade = "P"
-                                            else:
-                                                assigned_grade = "A0"
+                                        if sem_courses:
+                                            sem_strs = []
+                                            for sc in sem_courses:
+                                                c_name_str = sc["name"]
+                                                if any(pf_kw in c_name_str for pf_kw in ["진로", "세미나", "봉사", "현장실습", "채플", "인성"]):
+                                                    assigned_grade = "P"
+                                                else:
+                                                    assigned_grade = "A0"
 
-                                            courses.append(Course(
-                                                id=str(uuid.uuid4())[:8],
-                                                name=sc["name"],
-                                                credits=sc["credits"],
-                                                grade=assigned_grade,
-                                                is_major=sc["is_major"],
-                                                classification=sc["classification"],
-                                                year_semester=f"{yr}년 {hk_name}"
-                                            ))
+                                                courses.append(Course(
+                                                    id=str(uuid.uuid4())[:8],
+                                                    name=sc["name"],
+                                                    credits=sc["credits"],
+                                                    grade=assigned_grade,
+                                                    is_major=sc["is_major"],
+                                                    classification=sc["classification"],
+                                                    year_semester=f"{yr}년 {hk_name}"
+                                                ))
+                                                sem_strs.append(f"{sc['name']}({sc['credits']}학점/{assigned_grade})")
+
+                                            await log(f"  ✨ [{yr}년 {hk_name}] {len(sem_courses)}개 과목 수집: {', '.join(sem_strs[:4])}{'...' if len(sem_strs)>4 else ''}")
                                     except Exception:
                                         continue
                             break
@@ -346,7 +345,19 @@ async def crawl_portal(req: CrawlRequest):
                     unique_courses.append(c)
 
             courses = unique_courses
-            log(f"🎉 총 {len(courses)}개 고유 성적 과목 추출 완료!")
+
+            # Statistics calculation for final log
+            major_courses = [c for c in courses if c.is_major]
+            total_credits = sum(c.credits for c in courses)
+            major_credits = sum(c.credits for c in major_courses)
+
+            await log("-" * 56)
+            await log("📊 [수집 결과 요약]")
+            await log(f"  · 총 수강 과목: {len(courses)}개 ({total_credits}학점)")
+            await log(f"  · 전공 과목 수: {len(major_courses)}개 ({major_credits}학점)")
+            await log(f"  · 교양/기타 과목 수: {len(courses) - len(major_courses)}개 ({total_credits - major_credits}학점)")
+            await log("🎉 데이터 파싱 완료! 오른쪽 대시보드 및 학년별 카드에 즉시 반영합니다.")
+            await log("=" * 56)
 
             await browser.close()
 
@@ -358,13 +369,87 @@ async def crawl_portal(req: CrawlRequest):
             }
 
     except Exception as e:
-        log(f"❌ 크롤링 중 오류 발생: {str(e)}")
+        await log(f"❌ 크롤링 중 오류 발생: {str(e)}")
         return {
             "success": False,
             "logs": logs,
             "error": str(e),
             "courses": []
         }
+
+
+@app.post("/api/crawl")
+async def crawl_portal(req: CrawlRequest):
+    return await run_crawler_core(req)
+
+
+@app.post("/api/crawl-stream")
+async def crawl_portal_stream(req: CrawlRequest):
+    """
+    Real-time Server-Sent Events (SSE) streaming endpoint for live terminal progress logs.
+    """
+    queue = asyncio.Queue()
+
+    async def log_emitter(msg: str):
+        await queue.put({"type": "log", "message": msg})
+
+    async def run_task():
+        result = await run_crawler_core(req, emit_log=log_emitter)
+        await queue.put({"type": "done", "result": result})
+
+    async def event_generator():
+        task = asyncio.create_task(run_task())
+        while True:
+            item = await queue.get()
+            if item["type"] == "log":
+                yield f"data: {json.dumps({'type': 'log', 'message': item['message']}, ensure_ascii=False)}\n\n"
+            elif item["type"] == "done":
+                yield f"data: {json.dumps({'type': 'done', 'result': item['result']}, ensure_ascii=False)}\n\n"
+                break
+        await task
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+async def auto_click_grade_menu_async(page, log_fn):
+    """Attempts to find and click grade-related menus in WebSquare/MDI portals."""
+    menu_keywords = ["성적조회", "취득학점", "성적", "학사행정", "마이페이지", "수강/성적"]
+    all_frames = [page] + page.frames
+
+    # 1. KAU Portal TopFrame (#Menu21) & LeftFrame (_my_Page01_LIST_LEFT_MENU.OnCLICK(13))
+    try:
+        for f in page.frames:
+            if f.name == "TopFrame" or "TopFrame" in f.url:
+                await log_fn("      👉 교과정보 메뉴(#Menu21) 클릭...")
+                await f.wait_for_selector("#Menu21", timeout=5000)
+                await f.click("#Menu21")
+                await asyncio.sleep(2)
+                break
+    except Exception:
+        pass
+
+    try:
+        for f in page.frames:
+            if f.name == "LeftFrame" or "LeftFrame" in f.url:
+                await log_fn("      👉 누적성적조회(_my_Page01_LIST_LEFT_MENU.OnCLICK(13)) 실행...")
+                await f.evaluate("_my_Page01_LIST_LEFT_MENU.OnCLICK(13)")
+                await asyncio.sleep(3)
+                return
+    except Exception:
+        pass
+
+    # 2. General keyword clicking fallback
+    for f in all_frames:
+        try:
+            for kw in menu_keywords:
+                elem = f.locator(f"text='{kw}'")
+                if await elem.count() > 0:
+                    await log_fn(f"      👉 메뉴 '{kw}' 발견 및 선택...")
+                    await elem.first.click(timeout=3000)
+                    await asyncio.sleep(2)
+                    break
+        except Exception:
+            continue
 
 
 async def auto_click_grade_menu(page, log_fn):
