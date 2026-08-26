@@ -224,20 +224,7 @@
           </div>
         </div>
 
-        <!-- Academic Year Major Breakdown Card -->
-        <div class="card year-breakdown-card">
-          <div class="year-breakdown-header">
-            <h3><i class="fa-solid fa-graduation-cap"></i> 학년별 전공 이수학점 및 전공 평점 분석</h3>
-            <span class="badge badge-pink">Major by Year</span>
-          </div>
-          <div class="year-grid" id="year-breakdown-grid">
-            <div class="empty-year-state">
-              <p>등록된 과목이 없어 학년별 분석 데이터가 표시되지 않습니다.</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Controls Toolbar -->
+        <!-- Controls Toolbar (Moved directly below top metrics) -->
         <div class="toolbar-card">
           <div class="toolbar-left">
             <label for="scale-select"><i class="fa-solid fa-sliders"></i> 만점 기준:</label>
@@ -258,6 +245,19 @@
               <i class="fa-solid fa-file-import"></i> 불러오기
             </button>
             <input type="file" id="file-import" accept=".json" class="hidden">
+          </div>
+        </div>
+
+        <!-- Academic Year Major Breakdown Card -->
+        <div class="card year-breakdown-card">
+          <div class="year-breakdown-header">
+            <h3><i class="fa-solid fa-graduation-cap"></i> 학년별 전공 이수학점 및 전공 평점 분석</h3>
+            <span class="badge badge-pink">Major by Year</span>
+          </div>
+          <div class="year-grid" id="year-breakdown-grid">
+            <div class="empty-year-state">
+              <p>등록된 과목이 없어 학년별 분석 데이터가 표시되지 않습니다.</p>
+            </div>
           </div>
         </div>
 
@@ -326,6 +326,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js?v=20260826_v8"></script>
+  <script src="/static/app.js?v=20260826_v9"></script>
 </body>
 </html>
