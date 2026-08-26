@@ -50,7 +50,7 @@ function initPresets() {
   btnKau.addEventListener("click", () => {
     btnKau.classList.add("active");
     btnGeneric.classList.remove("active");
-    portalUrlInput.value = "https://nportal.kau.ac.kr/webcrea/GA+3/mdi/login.html";
+    portalUrlInput.value = "https://nportal.kau.ac.kr/webcrea/GB03/mdi/login.html";
     idSelInput.value = "input[id*='inputId'], #mainForm3\\.inputId, #mainForm4\\.inputId, input[type='text']";
     pwSelInput.value = "input[id*='inputPassword'], #mainForm3\\.inputPassword, #mainForm4\\.inputPassword, input[type='password']";
     loginBtnSelInput.value = "input[id*='button'], button[type='submit'], input[type='submit'], #btn_login, .login_btn";
@@ -181,41 +181,74 @@ function initForms() {
   if (btnManualAdd) btnManualAdd.addEventListener("click", runManualAdd);
 }
 
-// Crawling Execution Handler (Real-time Streaming)
-async function handleCrawl() {
+// Crawling Execution Handler (Real-time Streaming with Fallback)
+window.handleCrawl = async function() {
+  const userIdInput = document.getElementById("user_id");
+  const passwordInput = document.getElementById("password");
+  const portalUrlInput = document.getElementById("portal_url");
+
+  const userId = userIdInput ? userIdInput.value.trim() : "";
+  const password = passwordInput ? passwordInput.value : "";
+  const portalUrl = portalUrlInput ? portalUrlInput.value.trim() : "";
+
+  if (!userId) {
+    alert("학번(아이디)을 입력해 주세요!");
+    if (userIdInput) userIdInput.focus();
+    return;
+  }
+
+  if (!password) {
+    alert("비밀번호를 입력해 주세요!");
+    if (passwordInput) passwordInput.focus();
+    return;
+  }
+
   const terminalCard = document.getElementById("terminal-card");
   const terminalBody = document.getElementById("terminal-body");
   const statusIndicator = document.getElementById("status-indicator");
   const submitBtn = document.getElementById("btn-submit-crawl");
 
-  terminalCard.classList.remove("hidden");
-  terminalBody.textContent = "🚀 서버 연결 및 Playwright 웹 크롤러 세션 준비 중...\n";
-  statusIndicator.textContent = "진행 중...";
-  statusIndicator.style.background = "var(--sun)";
-  statusIndicator.style.color = "var(--on-sun)";
-  submitBtn.disabled = true;
+  if (terminalCard) {
+    terminalCard.classList.remove("hidden");
+    terminalCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  if (terminalBody) {
+    terminalBody.textContent = "🚀 서버 연결 및 Playwright 웹 크롤러 세션 준비 중...\n";
+  }
+
+  if (statusIndicator) {
+    statusIndicator.textContent = "진행 중...";
+    statusIndicator.style.background = "var(--sun)";
+    statusIndicator.style.color = "var(--on-sun)";
+  }
+
+  if (submitBtn) submitBtn.disabled = true;
 
   // 기존 성적 리스트 즉시 초기화
   state.courses = [];
   renderApp();
 
   const payload = {
-    portal_url: document.getElementById("portal_url").value,
-    user_id: document.getElementById("user_id").value,
-    password: document.getElementById("password").value,
+    portal_url: portalUrl || "https://nportal.kau.ac.kr/webcrea/GB03/mdi/login.html",
+    user_id: userId,
+    password: password,
     headless: true,
-    id_selector: document.getElementById("id_selector").value,
-    pw_selector: document.getElementById("pw_selector").value,
-    login_btn_selector: document.getElementById("login_btn_selector").value,
-    grade_url: document.getElementById("grade_url").value || null
+    id_selector: document.getElementById("id_selector") ? document.getElementById("id_selector").value : "",
+    pw_selector: document.getElementById("pw_selector") ? document.getElementById("pw_selector").value : "",
+    login_btn_selector: document.getElementById("login_btn_selector") ? document.getElementById("login_btn_selector").value : "",
+    grade_url: (document.getElementById("grade_url") && document.getElementById("grade_url").value) || null
   };
 
   function appendLog(text) {
-    terminalBody.textContent += text + "\n";
-    terminalBody.scrollTop = terminalBody.scrollHeight;
+    if (terminalBody) {
+      terminalBody.textContent += text + "\n";
+      terminalBody.scrollTop = terminalBody.scrollHeight;
+    }
   }
 
   try {
+    // Attempt real-time SSE streaming
     const response = await fetch("/api/crawl-stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -223,7 +256,7 @@ async function handleCrawl() {
     });
 
     if (!response.ok || !response.body) {
-      throw new Error(`HTTP ${response.status}: 스트리밍 응답 실패`);
+      throw new Error(`HTTP ${response.status}: 스트리밍 응답 대기 중`);
     }
 
     const reader = response.body.getReader();
@@ -231,7 +264,7 @@ async function handleCrawl() {
     let buffer = "";
     let finalResult = null;
 
-    terminalBody.textContent = ""; // Clear initial text and stream
+    if (terminalBody) terminalBody.textContent = "";
 
     while (true) {
       const { value, done } = await reader.read();
@@ -239,7 +272,7 @@ async function handleCrawl() {
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
-      buffer = lines.pop(); // Keep last partial line in buffer
+      buffer = lines.pop();
 
       for (const line of lines) {
         const trimmed = line.trim();
@@ -255,36 +288,73 @@ async function handleCrawl() {
             finalResult = ev.result;
           }
         } catch (e) {
-          // ignore unparsable fragments
+          // ignore
         }
       }
     }
 
     if (finalResult) {
       if (finalResult.success) {
-        statusIndicator.textContent = "수집 완료";
-        statusIndicator.style.background = "#b8f0ca";
-        statusIndicator.style.color = "#164a25";
+        if (statusIndicator) {
+          statusIndicator.textContent = "수집 완료";
+          statusIndicator.style.background = "#b8f0ca";
+          statusIndicator.style.color = "#164a25";
+        }
         if (finalResult.courses && finalResult.courses.length > 0) {
           addCourses(finalResult.courses);
         }
       } else {
-        statusIndicator.textContent = "오류 발생";
-        statusIndicator.style.background = "var(--rose)";
-        statusIndicator.style.color = "var(--on-rose)";
+        if (statusIndicator) {
+          statusIndicator.textContent = "오류 발생";
+          statusIndicator.style.background = "var(--rose)";
+          statusIndicator.style.color = "var(--on-rose)";
+        }
         appendLog(`\n❌ 크롤링 실패: ${finalResult.error || "알 수 없는 오류"}`);
       }
     }
 
   } catch (err) {
-    statusIndicator.textContent = "통신 에러";
-    statusIndicator.style.background = "var(--rose)";
-    statusIndicator.style.color = "var(--on-rose)";
-    appendLog(`\n❌ 서버 통신 오류: ${err.message}`);
+    // Fallback to standard /api/crawl endpoint
+    appendLog(`ℹ️ 실시간 스트림 대신 표준 방식으로 전환하여 조회합니다...`);
+    try {
+      const fbRes = await fetch("/api/crawl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await fbRes.json();
+      if (data.logs) {
+        if (terminalBody) terminalBody.textContent = data.logs.join("\n") + "\n";
+      }
+      if (data.success) {
+        if (statusIndicator) {
+          statusIndicator.textContent = "수집 완료";
+          statusIndicator.style.background = "#b8f0ca";
+          statusIndicator.style.color = "#164a25";
+        }
+        if (data.courses && data.courses.length > 0) {
+          addCourses(data.courses);
+        }
+      } else {
+        if (statusIndicator) {
+          statusIndicator.textContent = "오류 발생";
+          statusIndicator.style.background = "var(--rose)";
+          statusIndicator.style.color = "var(--on-rose)";
+        }
+        appendLog(`\n❌ 크롤링 실패: ${data.error || "알 수 없는 오류"}`);
+      }
+    } catch (fbErr) {
+      if (statusIndicator) {
+        statusIndicator.textContent = "통신 에러";
+        statusIndicator.style.background = "var(--rose)";
+        statusIndicator.style.color = "var(--on-rose)";
+      }
+      appendLog(`\n❌ 서버 통신 오류: ${fbErr.message}`);
+    }
   } finally {
-    submitBtn.disabled = false;
+    if (submitBtn) submitBtn.disabled = false;
   }
-}
+};
 
 // Add Courses to State
 function addCourses(newCourses) {
