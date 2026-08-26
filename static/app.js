@@ -704,19 +704,6 @@ function renderApp() {
   `).join('');
 }
 
-// Render Academic Year Major Breakdown Mini-Cards
-function renderYearBreakdown() {
-  const grid = document.getElementById("year-breakdown-grid");
-  if (!grid) return;
-
-  if (!state.courses || state.courses.length === 0) {
-    grid.innerHTML = `
-      <div class="empty-year-state">
-        <p>등록된 과목이 없어 학년별 분석 데이터가 표시되지 않습니다.</p>
-      </div>
-    `;
-    return;
-  }
 
 // Academic Year Counter Helper (Counts 1 academic year for every 2 completed semesters)
 function getAcademicYearGroups(courses, scale) {
