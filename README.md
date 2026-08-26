@@ -1,4 +1,4 @@
-# 🎓 한국항공대학교 전공 평점 자동 계산기 (KAU Major GPA Calculator)
+# 한국항공대학교 전공 평점 자동 계산기 (KAU Major GPA Calculator)
 
 한국항공대학교(KAU) 종합정보시스템(nportal) 성적 자동 크롤링 및 학년별 전공 학점/평점 분석 웹 애플리케이션입니다.
 
@@ -8,7 +8,7 @@
 
 ---
 
-## ✨ 주요 기능
+## 주요 기능
 
 1. **학교 포털 성적 자동 수집 (Playwright 크롤러)**
    - 학번과 비밀번호를 입력하면 한국항공대 포털(`nportal.kau.ac.kr`)에 자동 로그인하여 전체 수강 내역을 안전하게 크롤링합니다.
@@ -25,12 +25,11 @@
 4. **학년별 전공 성적 텍스트 내보내기**
    - 원하는 양식으로 정리된 학년별 전공 과목 성적 요약 텍스트(`.txt`) 파일 다운로드.
 
-5. **Codex-Resets 스타일의 감각적인 Neo-Brutalist GUI**
-   - 부드러운 크림 페이퍼 배경, 볼드한 블랙 라인, 하드 드롭 섀도우, Baloo 2 폰트가 적용된 개성 넘치는 인터페이스.
+
 
 ---
 
-## 🚀 빠른 시작 가이드
+## 빠른 시작 가이드
 
 ### 1. 저장소 클론 및 패키지 설치
 
@@ -55,7 +54,7 @@ python -m uvicorn app:app --host 127.0.0.1 --port 8000
 
 ---
 
-## 🛠️ 기술 스택
+## 기술 스택
 
 - **Backend**: Python 3.10+, FastAPI, Uvicorn, Playwright (Async Chromium)
 - **Frontend**: Vanilla JavaScript (ES6+), HTML5, CSS3 (Neo-Brutalism Theme)
