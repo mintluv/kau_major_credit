@@ -182,7 +182,11 @@ function initForms() {
 }
 
 // Crawling Execution Handler (Real-time Streaming with Fallback)
+let isCrawling = false;
+
 window.handleCrawl = async function() {
+  if (isCrawling) return; // Prevent double execution
+  
   const userIdInput = document.getElementById("user_id");
   const passwordInput = document.getElementById("password");
   const portalUrlInput = document.getElementById("portal_url");
@@ -202,6 +206,8 @@ window.handleCrawl = async function() {
     if (passwordInput) passwordInput.focus();
     return;
   }
+
+  isCrawling = true;
 
   const terminalCard = document.getElementById("terminal-card");
   const terminalBody = document.getElementById("terminal-body");
@@ -352,6 +358,7 @@ window.handleCrawl = async function() {
       appendLog(`\n❌ 서버 통신 오류: ${fbErr.message}`);
     }
   } finally {
+    isCrawling = false;
     if (submitBtn) submitBtn.disabled = false;
   }
 };
