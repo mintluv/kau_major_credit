@@ -1,0 +1,794 @@
+// State management
+let state = {
+  courses: [],
+  scale: 4.5
+};
+
+// Standard Grade Point Maps
+const GRADE_MAPS = {
+  4.5: {
+    "A+": 4.5, "A0": 4.0, "A": 4.0,
+    "B+": 3.5, "B0": 3.0, "B": 3.0,
+    "C+": 2.5, "C0": 2.0, "C": 2.0,
+    "D+": 1.5, "D0": 1.0, "D": 1.0,
+    "F": 0.0, "P": null, "NP": null
+  },
+  4.3: {
+    "A+": 4.3, "A0": 4.0, "A-": 3.7, "A": 4.0,
+    "B+": 3.3, "B0": 3.0, "B-": 2.7, "B": 3.0,
+    "C+": 2.3, "C0": 2.0, "C-": 1.7, "C": 2.0,
+    "D+": 1.3, "D0": 1.0, "D-": 0.7, "D": 1.0,
+    "F": 0.0, "P": null, "NP": null
+  },
+  4.0: {
+    "A+": 4.0, "A0": 4.0, "A-": 3.7, "A": 4.0,
+    "B+": 3.3, "B0": 3.0, "B-": 2.7, "B": 3.0,
+    "C+": 2.3, "C0": 2.0, "C-": 1.7, "C": 2.0,
+    "D+": 1.3, "D0": 1.0, "D-": 0.7, "D": 1.0,
+    "F": 0.0, "P": null, "NP": null
+  }
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  initPresets();
+  initTabs();
+  initAdvancedToggle();
+  initForms();
+  initToolbar();
+  initSimulator();
+});
+
+// Preset Buttons
+function initPresets() {
+  const btnKau = document.getElementById("btn-preset-kau");
+  const btnGeneric = document.getElementById("btn-preset-generic");
+  const portalUrlInput = document.getElementById("portal_url");
+  const idSelInput = document.getElementById("id_selector");
+  const pwSelInput = document.getElementById("pw_selector");
+  const loginBtnSelInput = document.getElementById("login_btn_selector");
+
+  btnKau.addEventListener("click", () => {
+    btnKau.classList.add("active");
+    btnGeneric.classList.remove("active");
+    portalUrlInput.value = "https://nportal.kau.ac.kr/webcrea/GA+3/mdi/login.html";
+    idSelInput.value = "input[id*='inputId'], #mainForm3\\.inputId, #mainForm4\\.inputId, input[type='text']";
+    pwSelInput.value = "input[id*='inputPassword'], #mainForm3\\.inputPassword, #mainForm4\\.inputPassword, input[type='password']";
+    loginBtnSelInput.value = "input[id*='button'], button[type='submit'], input[type='submit'], #btn_login, .login_btn";
+  });
+
+  btnGeneric.addEventListener("click", () => {
+    btnGeneric.classList.add("active");
+    btnKau.classList.remove("active");
+    portalUrlInput.value = "";
+    portalUrlInput.placeholder = "https://portal.university.ac.kr/login";
+  });
+}
+
+// Tab Switching
+function initTabs() {
+  const tabBtns = document.querySelectorAll(".tab-btn");
+  tabBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      tabBtns.forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+      
+      btn.classList.add("active");
+      const tabId = btn.getAttribute("data-tab");
+      document.getElementById(tabId).classList.add("active");
+    });
+  });
+}
+
+// Advanced Selector Toggle
+function initAdvancedToggle() {
+  const toggleBtn = document.getElementById("toggle-advanced");
+  const section = document.getElementById("advanced-section");
+  const chevron = document.getElementById("adv-chevron");
+
+  toggleBtn.addEventListener("click", () => {
+    const isHidden = section.classList.contains("hidden");
+    if (isHidden) {
+      section.classList.remove("hidden");
+      chevron.style.transform = "rotate(180deg)";
+    } else {
+      section.classList.add("hidden");
+      chevron.style.transform = "rotate(0deg)";
+    }
+  });
+}
+
+// Forms initialization
+function initForms() {
+  // Global submit prevention across all forms
+  document.querySelectorAll("form").forEach(f => {
+    f.addEventListener("submit", (e) => e.preventDefault());
+  });
+
+  // Crawl Form Submit & Button Click
+  const crawlForm = document.getElementById("crawl-form");
+  const btnSubmitCrawl = document.getElementById("btn-submit-crawl");
+
+  const runCrawl = async (e) => {
+    if (e) e.preventDefault();
+    await handleCrawl();
+  };
+
+  if (crawlForm) crawlForm.addEventListener("submit", runCrawl);
+  if (btnSubmitCrawl) btnSubmitCrawl.addEventListener("click", runCrawl);
+
+  // Text Paste Parse Submit
+  const btnParseText = document.getElementById("btn-parse-text");
+  if (btnParseText) {
+    btnParseText.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const text = document.getElementById("paste-text").value.trim();
+      if (!text) {
+        alert("성적표 텍스트를 먼저 입력해 주세요!");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/parse-text", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
+        if (data.success && data.courses.length > 0) {
+          addCourses(data.courses);
+          alert(`🎉 ${data.courses.length}개 과목이 자동으로 파싱되어 추가되었습니다!`);
+        } else {
+          alert("⚠️ 텍스트에서 과목 및 성적 정보를 파싱하지 못했습니다. 수동 입력을 이용해 보세요.");
+        }
+      } catch (err) {
+        alert("오류가 발생했습니다: " + err.message);
+      }
+    });
+  }
+
+  // Manual Input Submit & Button Click
+  const manualForm = document.getElementById("manual-form");
+  const btnManualAdd = document.getElementById("btn-manual-add");
+
+  const runManualAdd = (e) => {
+    if (e) e.preventDefault();
+    const nameInput = document.getElementById("m-name");
+    const name = nameInput ? nameInput.value.trim() : "";
+    const credits = parseFloat(document.getElementById("m-credits").value);
+    const grade = document.getElementById("m-grade").value;
+    const classification = document.getElementById("m-class").value;
+    const isMajor = document.getElementById("m-is-major").checked;
+
+    if (!name) {
+      alert("과목명을 입력해 주세요!");
+      return;
+    }
+
+    const newCourse = {
+      id: Math.random().toString(36).substring(2, 9),
+      name,
+      credits,
+      grade,
+      is_major: isMajor,
+      classification
+    };
+
+    addCourses([newCourse]);
+    if (nameInput) nameInput.value = "";
+  };
+
+  if (manualForm) manualForm.addEventListener("submit", runManualAdd);
+  if (btnManualAdd) btnManualAdd.addEventListener("click", runManualAdd);
+}
+
+// Crawling Execution Handler
+async function handleCrawl() {
+  const terminalCard = document.getElementById("terminal-card");
+  const terminalBody = document.getElementById("terminal-body");
+  const statusIndicator = document.getElementById("status-indicator");
+  const submitBtn = document.getElementById("btn-submit-crawl");
+
+  terminalCard.classList.remove("hidden");
+  terminalBody.textContent = "🚀 서버 연결 및 Playwright 웹 크롤러 세션 준비 중...\n";
+  statusIndicator.textContent = "실행 중...";
+  statusIndicator.style.color = "#38bdf8";
+  submitBtn.disabled = true;
+
+  // 기존 성적 리스트 즉시 초기화
+  state.courses = [];
+  renderApp();
+
+  const payload = {
+    portal_url: document.getElementById("portal_url").value,
+    user_id: document.getElementById("user_id").value,
+    password: document.getElementById("password").value,
+    headless: true,
+    id_selector: document.getElementById("id_selector").value,
+    pw_selector: document.getElementById("pw_selector").value,
+    login_btn_selector: document.getElementById("login_btn_selector").value,
+    grade_url: document.getElementById("grade_url").value || null
+  };
+
+  try {
+    const response = await fetch("/api/crawl", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+
+    if (data.logs) {
+      terminalBody.textContent = data.logs.join("\n") + "\n";
+    }
+
+    if (data.success) {
+      statusIndicator.textContent = "수집 완료";
+      statusIndicator.style.color = "#4ade80";
+      if (data.courses && data.courses.length > 0) {
+        addCourses(data.courses);
+        terminalBody.textContent += `\n🎉 성공적으로 ${data.courses.length}개 과목 성적을 불러왔습니다!`;
+      } else {
+        terminalBody.textContent += "\n⚠️ 로그인 또는 성적 표 탐색은 완료되었으나 과목 데이터를 찾지 못했습니다. 텍스트 복사-붙여넣기 탭을 활용해 보세요.";
+      }
+    } else {
+      statusIndicator.textContent = "오류 발생";
+      statusIndicator.style.color = "#f87171";
+      terminalBody.textContent += `\n❌ 크롤링 실패: ${data.error || "알 수 없는 오류"}`;
+    }
+
+  } catch (err) {
+    statusIndicator.textContent = "통신 에러";
+    statusIndicator.style.color = "#f87171";
+    terminalBody.textContent += `\n❌ 서버 통신 오류: ${err.message}`;
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
+// Add Courses to State
+function addCourses(newCourses) {
+  const processed = newCourses.map(c => {
+    const cls = c.classification || c.type || "";
+    const name = c.name || "";
+    // Any item containing '전공', '전필', '전선' is strictly treated as Major
+    const isMajor = c.is_major || 
+                    cls.includes("전공") || cls.includes("전필") || cls.includes("전선") || 
+                    name.includes("전공필수") || name.includes("전공선택");
+    return {
+      ...c,
+      is_major: isMajor,
+      classification: cls || (isMajor ? "전공" : "교양")
+    };
+  });
+  state.courses = [...state.courses, ...processed];
+  renderApp();
+}
+
+// Toolbar & Controls
+// Toolbar & Controls
+function initToolbar() {
+  const scaleSelect = document.getElementById("scale-select");
+  if (scaleSelect) {
+    scaleSelect.addEventListener("change", (e) => {
+      state.scale = parseFloat(e.target.value);
+      document.getElementById("scale-display-1").textContent = `/ ${state.scale.toFixed(2)}`;
+      document.getElementById("scale-display-2").textContent = `/ ${state.scale.toFixed(2)}`;
+      renderApp();
+    });
+  }
+
+  // Clear all
+  const btnClearAll = document.getElementById("btn-clear-all");
+  if (btnClearAll) {
+    btnClearAll.addEventListener("click", (e) => {
+      if (e) e.preventDefault();
+      if (confirm("등록된 모든 과목 성적을 삭제하시겠습니까?")) {
+        state.courses = [];
+        renderApp();
+      }
+    });
+  }
+
+  // Load KAU Student 2018124205 Full Sample
+  const btnLoadSample = document.getElementById("btn-load-sample");
+  if (btnLoadSample) {
+    btnLoadSample.addEventListener("click", (e) => {
+      if (e) e.preventDefault();
+      state.courses = [];
+      addCourses([
+        // 2018-2 (1학년)
+        { id: "k1", name: "물리및실험II", credits: 3.0, grade: "A+", is_major: false, classification: "교양필수", year_semester: "2018년 2학기" },
+        { id: "k2", name: "선형대수학", credits: 3.0, grade: "A+", is_major: false, classification: "교양필수", year_semester: "2018년 2학기" },
+        { id: "k3", name: "영어커뮤니케이션Ⅱ", credits: 2.0, grade: "A+", is_major: false, classification: "교양필수", year_semester: "2018년 2학기" },
+        { id: "k4", name: "항공우주산업개론", credits: 2.0, grade: "A+", is_major: false, classification: "교양필수", year_semester: "2018년 2학기" },
+        { id: "k5", name: "기초공학설계", credits: 3.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2018년 2학기" },
+        { id: "k6", name: "컴퓨터프로그래밍", credits: 3.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2018년 2학기" },
+
+        // 2019-1 (2학년)
+        { id: "k7", name: "교양글쓰기", credits: 2.0, grade: "A+", is_major: false, classification: "교양필수", year_semester: "2019년 1학기" },
+        { id: "k8", name: "항공우주학개론", credits: 2.0, grade: "A+", is_major: false, classification: "교양필수", year_semester: "2019년 1학기" },
+        { id: "k9", name: "미분적분학", credits: 3.0, grade: "A+", is_major: false, classification: "교양필수", year_semester: "2019년 1학기" },
+        { id: "k10", name: "물리및실험I", credits: 3.0, grade: "A+", is_major: false, classification: "교양필수", year_semester: "2019년 1학기" },
+        { id: "k11", name: "컴퓨팅적 사고와 문제해결", credits: 3.0, grade: "A+", is_major: false, classification: "교양필수", year_semester: "2019년 1학기" },
+        { id: "k12", name: "천체와 우주의 이해", credits: 3.0, grade: "A+", is_major: false, classification: "교양선택", year_semester: "2019년 1학기" },
+        { id: "k13", name: "영어커뮤니케이션Ⅰ", credits: 2.0, grade: "A+", is_major: false, classification: "교양필수", year_semester: "2019년 1학기" },
+
+        // 2022-1 & 2학기 (3학년)
+        { id: "k14", name: "사회봉사", credits: 1.0, grade: "P", is_major: false, classification: "교양선택", year_semester: "2022년 1학기" },
+        { id: "k15", name: "글로벌문화와 소통", credits: 3.0, grade: "A+", is_major: false, classification: "교양선택", year_semester: "2022년 1학기" },
+        { id: "k16", name: "공학수학Ⅱ", credits: 3.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2022년 1학기" },
+        { id: "k17", name: "전자기학Ⅰ", credits: 3.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2022년 1학기" },
+        { id: "k18", name: "회로이론Ⅰ", credits: 3.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2022년 1학기" },
+        { id: "k19", name: "디지털논리회로", credits: 3.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2022년 1학기" },
+        { id: "k20", name: "이산수학", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2022년 1학기" },
+
+        { id: "k21", name: "현대사회와 윤리문제", credits: 3.0, grade: "A+", is_major: false, classification: "교양선택", year_semester: "2022년 2학기" },
+        { id: "k22", name: "사회봉사", credits: 1.0, grade: "P", is_major: false, classification: "교양선택", year_semester: "2022년 2학기" },
+        { id: "k23", name: "항공전자정보 세미나", credits: 1.0, grade: "P", is_major: true, classification: "전공필수", year_semester: "2022년 2학기" },
+        { id: "k24", name: "기초회로및디지털실험", credits: 2.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2022년 2학기" },
+        { id: "k25", name: "회로이론Ⅱ", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2022년 2학기" },
+        { id: "k26", name: "물리전자공학", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2022년 2학기" },
+        { id: "k27", name: "자료구조", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2022년 2학기" },
+        { id: "k28", name: "디지털시스템설계", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2022년 2학기" },
+
+        // 2023-1 & 2학기 (4학년)
+        { id: "k29", name: "동양철학의 이해", credits: 3.0, grade: "A+", is_major: false, classification: "교양선택", year_semester: "2023년 1학기" },
+        { id: "k30", name: "전자회로Ⅰ", credits: 3.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2023년 1학기" },
+        { id: "k31", name: "전자회로실험", credits: 2.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2023년 1학기" },
+        { id: "k32", name: "신호 및 시스템", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2023년 1학기" },
+        { id: "k33", name: "반도체소자", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2023년 1학기" },
+        { id: "k34", name: "마이크로프로세서", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2023년 1학기" },
+
+        { id: "k35", name: "현대감성의 디자인과 예술", credits: 3.0, grade: "A+", is_major: false, classification: "교양선택", year_semester: "2023년 2학기" },
+        { id: "k36", name: "기업가정신과 취창업전략", credits: 2.0, grade: "P", is_major: false, classification: "교양선택", year_semester: "2023년 2학기" },
+        { id: "k37", name: "공학수학 I", credits: 3.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2023년 2학기" },
+        { id: "k38", name: "창업형 종합설계 I", credits: 3.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2023년 2학기" },
+        { id: "k39", name: "운영체제", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2023년 2학기" },
+        { id: "k40", name: "전자HW설계", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2023년 2학기" },
+
+        // 2024-1 & 2학기
+        { id: "k41", name: "골프", credits: 2.0, grade: "A+", is_major: false, classification: "교양선택", year_semester: "2024년 1학기" },
+        { id: "k42", name: "창업형 종합설계 II", credits: 3.0, grade: "A+", is_major: true, classification: "전공필수", year_semester: "2024년 1학기" },
+        { id: "k43", name: "VLSI 시스템", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2024년 1학기" },
+        { id: "k44", name: "고급시스템프로그래밍", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2024년 1학기" },
+        { id: "k45", name: "빅데이터 응용", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2024년 1학기" },
+
+        { id: "k46", name: "자기 계발과 표현", credits: 3.0, grade: "A+", is_major: false, classification: "교양선택", year_semester: "2024년 2학기" },
+        { id: "k47", name: "멀티미디어공학", credits: 3.0, grade: "A+", is_major: true, classification: "전공선택", year_semester: "2024년 2학기" }
+      ]);
+    });
+  }
+
+  // Export JSON
+  const btnExport = document.getElementById("btn-export-json");
+  if (btnExport) {
+    btnExport.addEventListener("click", (e) => {
+      if (e) e.preventDefault();
+      if (!state.courses || state.courses.length === 0) {
+        alert("내보낼 성적 데이터가 없습니다.");
+        return;
+      }
+
+      const gradeMap = GRADE_MAPS[state.scale] || GRADE_MAPS[4.5];
+      const yearGroups = {};
+
+      state.courses.forEach(c => {
+        let yearKey = "미지정";
+        if (c.year_semester) {
+          const match = c.year_semester.match(/(\d{4})년?/);
+          if (match) yearKey = `${match[1]}년`;
+        }
+        if (!yearGroups[yearKey]) yearGroups[yearKey] = { majorCourses: [], majorPoints: 0, majorCreditsGpa: 0 };
+
+        if (c.is_major) {
+          const pts = gradeMap[c.grade];
+          yearGroups[yearKey].majorCourses.push(c);
+          if (pts !== null && pts !== undefined) {
+            yearGroups[yearKey].majorPoints += pts * c.credits;
+            yearGroups[yearKey].majorCreditsGpa += c.credits;
+          }
+        }
+      });
+
+      const sortedYears = Object.keys(yearGroups).sort();
+      const yearLabels = ["1학년", "2학년", "3학년", "4학년"];
+      const lines = [];
+      const today = new Date().toLocaleDateString("ko-KR");
+
+      lines.push(`학년별 전공 성적 요약 (${today} / ${state.scale.toFixed(1)}점 만점)`);
+
+      sortedYears.forEach((yrKey, idx) => {
+        const data = yearGroups[yrKey];
+        const label = yrKey === "미지정"
+          ? "기타/미지정"
+          : (idx < yearLabels.length ? `${yearLabels[idx]}` : `${idx + 1}학년`);
+        const gpa = data.majorCreditsGpa > 0
+          ? (data.majorPoints / data.majorCreditsGpa).toFixed(2)
+          : "0.00";
+
+        lines.push("");
+        lines.push(`${label} (전공 평점: ${gpa} / ${state.scale.toFixed(2)})`);
+
+        if (data.majorCourses.length === 0) {
+          lines.push("전공 과목 없음");
+        } else {
+          const courseStr = data.majorCourses.map(c => `${c.name} (${c.grade})`).join("  ");
+          lines.push(courseStr);
+        }
+      });
+
+      let totalMajorPoints = 0, totalMajorCredits = 0;
+      state.courses.forEach(c => {
+        if (c.is_major) {
+          const pts = gradeMap[c.grade];
+          if (pts !== null && pts !== undefined) {
+            totalMajorPoints += pts * c.credits;
+            totalMajorCredits += c.credits;
+          }
+        }
+      });
+      const totalGpa = totalMajorCredits > 0 ? (totalMajorPoints / totalMajorCredits).toFixed(2) : "0.00";
+
+      lines.push("");
+      lines.push(`총 전공 평점: ${totalGpa} / ${state.scale.toFixed(2)}  (반영학점 ${totalMajorCredits}학점)`);
+
+      const text = lines.join("\n");
+      const blob = new Blob(["\uFEFF" + text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `전공성적요약_${new Date().toISOString().slice(0, 10)}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  // Import JSON
+  const fileInput = document.getElementById("file-import");
+  const btnImport = document.getElementById("btn-import-json");
+  if (btnImport && fileInput) {
+    btnImport.addEventListener("click", (e) => {
+      if (e) e.preventDefault();
+      fileInput.click();
+    });
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const imported = JSON.parse(event.target.result);
+          if (Array.isArray(imported)) {
+            state.courses = [];
+            addCourses(imported);
+            alert("🎉 성적 데이터를 성공적으로 불러왔습니다.");
+          }
+        } catch (err) {
+          alert("올바르지 않은 JSON 파일입니다.");
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
+}
+
+// Goal Simulator Logic
+function initSimulator() {
+  const btnRun = document.getElementById("btn-run-simulation");
+  btnRun.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const targetGpa = parseFloat(document.getElementById("sim-target-gpa").value);
+    const remainingCredits = parseFloat(document.getElementById("sim-remaining-credits").value);
+
+    // Calculate current major GPA
+    const majorCourses = state.courses.filter(c => c.is_major);
+    let curPoints = 0;
+    let curCredits = 0;
+    const gradeMap = GRADE_MAPS[state.scale] || GRADE_MAPS[4.5];
+
+    majorCourses.forEach(c => {
+      const pts = gradeMap[c.grade];
+      if (pts !== null && pts !== undefined) {
+        curPoints += pts * c.credits;
+        curCredits += c.credits;
+      }
+    });
+
+    const curMajorGpa = curCredits > 0 ? (curPoints / curCredits) : 0;
+
+    try {
+      const res = await fetch("/api/simulate-goal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          current_major_gpa: curMajorGpa,
+          current_major_credits: curCredits,
+          target_major_gpa: targetGpa,
+          remaining_major_credits: remainingCredits,
+          scale: state.scale
+        })
+      });
+
+      const data = await res.json();
+      const resultBox = document.getElementById("sim-result-box");
+      const resultText = document.getElementById("sim-result-text");
+
+      resultBox.classList.remove("hidden");
+      resultText.textContent = data.message;
+      if (data.possible) {
+        resultBox.style.borderColor = "#10b981";
+      } else {
+        resultBox.style.borderColor = "#ef4444";
+      }
+    } catch (err) {
+      alert("시뮬레이션 중 오류가 발생했습니다.");
+    }
+  });
+}
+
+// Render Application UI & Calculate GPA
+function renderApp() {
+  const gradeMap = GRADE_MAPS[state.scale] || GRADE_MAPS[4.5];
+
+  let majorPoints = 0;
+  let majorCreditsForGpa = 0;
+  let majorTotalCredits = 0;
+
+  let overallPoints = 0;
+  let overallCreditsForGpa = 0;
+  let overallTotalCredits = 0;
+
+  state.courses.forEach(c => {
+    const pts = gradeMap[c.grade];
+    const isP = c.grade === "P";
+
+    // Count credits towards total completed credits if not F/NP
+    if (c.grade !== "F" && c.grade !== "NP") {
+      overallTotalCredits += c.credits;
+      if (c.is_major) majorTotalCredits += c.credits;
+    }
+
+    if (pts !== null && pts !== undefined) {
+      overallPoints += pts * c.credits;
+      overallCreditsForGpa += c.credits;
+
+      if (c.is_major) {
+        majorPoints += pts * c.credits;
+        majorCreditsForGpa += c.credits;
+      }
+    }
+  });
+
+  const majorGpa = majorCreditsForGpa > 0 ? (majorPoints / majorCreditsForGpa) : 0;
+  const overallGpa = overallCreditsForGpa > 0 ? (overallPoints / overallCreditsForGpa) : 0;
+
+  // Update UI Counters
+  document.getElementById("val-major-gpa").textContent = majorGpa.toFixed(2);
+  document.getElementById("val-overall-gpa").textContent = overallGpa.toFixed(2);
+
+  document.getElementById("val-major-credits-info").innerHTML = `전공 이수: <strong>${majorTotalCredits}</strong> 학점 (평점 반영 ${majorCreditsForGpa}학점)`;
+  document.getElementById("val-overall-credits-info").innerHTML = `총 이수: <strong>${overallTotalCredits}</strong> 학점 (평점 반영 ${overallCreditsForGpa}학점)`;
+
+  document.getElementById("course-count").textContent = state.courses.length;
+
+  // Render Academic Year Major Breakdown
+  renderYearBreakdown();
+
+  // Render Table Rows
+  const tbody = document.getElementById("course-table-body");
+  if (state.courses.length === 0) {
+    tbody.innerHTML = `
+      <tr class="empty-row">
+        <td colspan="6">
+          <div class="empty-state">
+            <i class="fa-solid fa-folder-open"></i>
+            <p>등록된 과목이 없습니다.<br>왼쪽에서 포털 성적 수집, 텍스트 붙여넣기 또는 과목을 직접 추가해 보세요!</p>
+          </div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = state.courses.map(c => `
+    <tr>
+      <td>
+        <button type="button" class="toggle-major-btn ${c.is_major ? 'is-major' : 'not-major'}" onclick="toggleMajor('${c.id}')">
+          ${c.is_major ? '🌸 전공' : '📘 교양'}
+        </button>
+      </td>
+      <td><strong>${escapeHtml(c.name)}</strong></td>
+      <td>
+        <select onchange="updateCredits('${c.id}', this.value)">
+          ${[1.0, 2.0, 3.0, 4.0].map(cr => `<option value="${cr}" ${cr === c.credits ? 'selected' : ''}>${cr}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <select onchange="updateGrade('${c.id}', this.value)">
+          ${Object.keys(gradeMap).map(g => `<option value="${g}" ${g === c.grade ? 'selected' : ''}>${g}</option>`).join('')}
+        </select>
+      </td>
+      <td><span class="badge ${c.is_major ? 'badge-pink' : 'badge-purple'}">${escapeHtml(c.classification || (c.is_major ? '전공' : '교양'))}</span></td>
+      <td>
+        <button type="button" class="btn btn-danger btn-sm" onclick="deleteCourse('${c.id}')">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// Render Academic Year Major Breakdown Mini-Cards
+function renderYearBreakdown() {
+  const grid = document.getElementById("year-breakdown-grid");
+  if (!grid) return;
+
+  if (!state.courses || state.courses.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-year-state">
+        <p>등록된 과목이 없어 학년별 분석 데이터가 표시되지 않습니다.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const gradeMap = GRADE_MAPS[state.scale] || GRADE_MAPS[4.5];
+  const yearGroups = {};
+
+  state.courses.forEach(c => {
+    let yearKey = "미지정";
+    if (c.year_semester) {
+      const match = c.year_semester.match(/(\d{4})년?/);
+      if (match) {
+        yearKey = `${match[1]}년`;
+      }
+    }
+
+    if (!yearGroups[yearKey]) {
+      yearGroups[yearKey] = {
+        year: yearKey,
+        majorCreditsTotal: 0,
+        majorCreditsGpa: 0,
+        majorPoints: 0,
+        overallCreditsTotal: 0,
+        overallCreditsGpa: 0,
+        overallPoints: 0,
+        majorCourses: []
+      };
+    }
+
+    const g = yearGroups[yearKey];
+    const pts = gradeMap[c.grade];
+
+    if (c.grade !== "F" && c.grade !== "NP") {
+      g.overallCreditsTotal += c.credits;
+      if (c.is_major) g.majorCreditsTotal += c.credits;
+    }
+
+    if (pts !== null && pts !== undefined) {
+      g.overallPoints += pts * c.credits;
+      g.overallCreditsGpa += c.credits;
+
+      if (c.is_major) {
+        g.majorPoints += pts * c.credits;
+        g.majorCreditsGpa += c.credits;
+        g.majorCourses.push({ name: c.name, credits: c.credits, grade: c.grade, pts, classification: c.classification || "" });
+      }
+    } else {
+      // P/NP 등 평점 미반영 전공 과목도 리스트에 포함
+      if (c.is_major) {
+        g.majorCourses.push({ name: c.name, credits: c.credits, grade: c.grade, pts: null, classification: c.classification || "" });
+      }
+    }
+  });
+
+  const sortedYears = Object.keys(yearGroups).sort();
+  if (sortedYears.length === 0) {
+    grid.innerHTML = `<div class="empty-year-state"><p>학년별 데이터가 없습니다.</p></div>`;
+    return;
+  }
+
+  const yearLabels = ["1학년", "2학년", "3학년", "4학년"];
+
+  // 레이아웃: 학년별 카드를 세로 전체폭으로 나열
+  grid.style.gridTemplateColumns = "1fr";
+
+  grid.innerHTML = sortedYears.map((yrKey, idx) => {
+    const data = yearGroups[yrKey];
+    const gradeLabel = yrKey === "미지정"
+      ? "기타/미지정"
+      : (idx < yearLabels.length ? `${yearLabels[idx]} (${yrKey})` : `${idx + 1}학년 (${yrKey})`);
+
+    const majGpa = data.majorCreditsGpa > 0 ? (data.majorPoints / data.majorCreditsGpa).toFixed(2) : "0.00";
+    const overallGpa = data.overallCreditsGpa > 0 ? (data.overallPoints / data.overallCreditsGpa).toFixed(2) : "0.00";
+
+    // 전공 과목 테이블 행 생성
+    const courseRows = data.majorCourses.length > 0
+      ? data.majorCourses.map(mc => {
+          const gradeClass = mc.grade && mc.grade[0] ? `grade-${mc.grade[0]}` : "grade-P";
+          const ptsDisplay = mc.pts !== null ? mc.pts.toFixed(1) : "-";
+          const clsLabel = mc.classification ? `<span class="yr-cls-badge">${escapeHtml(mc.classification)}</span>` : "";
+          return `
+            <tr>
+              <td>${escapeHtml(mc.name)} ${clsLabel}</td>
+              <td style="text-align:center;">${mc.credits}</td>
+              <td style="text-align:center;"><span class="grade-badge ${gradeClass}">${escapeHtml(mc.grade)}</span></td>
+              <td style="text-align:center; font-weight:700; color:#38bdf8;">${ptsDisplay}</td>
+            </tr>`;
+        }).join('')
+      : `<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:10px;">해당 학년 전공 과목 없음</td></tr>`;
+
+    return `
+      <div class="year-card year-card-full">
+        <div class="year-card-header">
+          <span class="year-title">🎓 ${gradeLabel}</span>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span style="font-size:0.8rem; color:var(--text-muted);">전체 평점 <strong style="color:var(--purple-accent);">${overallGpa}</strong></span>
+            <span class="year-gpa-tag">전공 ${majGpa} / ${state.scale.toFixed(2)}</span>
+          </div>
+        </div>
+        <!-- 요약 배지 행 -->
+        <div class="year-summary-row">
+          <div class="year-stat-chip">
+            <span class="chip-lbl">전공 이수학점</span>
+            <span class="chip-val">${data.majorCreditsTotal}<small>학점</small></span>
+          </div>
+          <div class="year-stat-chip">
+            <span class="chip-lbl">평점 반영</span>
+            <span class="chip-val">${data.majorCreditsGpa}<small>학점</small></span>
+          </div>
+          <div class="year-stat-chip highlight-chip">
+            <span class="chip-lbl">전공 평점</span>
+            <span class="chip-val" style="color:#38bdf8;">${majGpa}</span>
+          </div>
+          <div class="year-stat-chip">
+            <span class="chip-lbl">전공 과목 수</span>
+            <span class="chip-val">${data.majorCourses.length}<small>개</small></span>
+          </div>
+        </div>
+        <!-- 전공 과목 상세 테이블 -->
+        <div class="year-course-table-wrap">
+          <table class="year-course-table">
+            <thead>
+              <tr>
+                <th>과목명</th>
+                <th style="width:60px; text-align:center;">학점</th>
+                <th style="width:70px; text-align:center;">성적</th>
+                <th style="width:70px; text-align:center;">평점</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${courseRows}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Action helpers
+window.toggleMajor = function(id) {
+  state.courses = state.courses.map(c => c.id === id ? { ...c, is_major: !c.is_major } : c);
+  renderApp();
+};
+
+window.updateCredits = function(id, val) {
+  state.courses = state.courses.map(c => c.id === id ? { ...c, credits: parseFloat(val) } : c);
+  renderApp();
+};
+
+window.updateGrade = function(id, val) {
+  state.courses = state.courses.map(c => c.id === id ? { ...c, grade: val } : c);
+  renderApp();
+};
+
+window.deleteCourse = function(id) {
+  state.courses = state.courses.filter(c => c.id !== id);
+  renderApp();
+};
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
