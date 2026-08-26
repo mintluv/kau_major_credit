@@ -400,7 +400,7 @@ function initToolbar() {
     });
   }
 
-  // Export JSON
+  // Export Text File (2-semester counter per academic year)
   const btnExport = document.getElementById("btn-export-json");
   if (btnExport) {
     btnExport.addEventListener("click", (e) => {
@@ -411,44 +411,19 @@ function initToolbar() {
       }
 
       const gradeMap = GRADE_MAPS[state.scale] || GRADE_MAPS[4.5];
-      const yearGroups = {};
-
-      state.courses.forEach(c => {
-        let yearKey = "미지정";
-        if (c.year_semester) {
-          const match = c.year_semester.match(/(\d{4})년?/);
-          if (match) yearKey = `${match[1]}년`;
-        }
-        if (!yearGroups[yearKey]) yearGroups[yearKey] = { majorCourses: [], majorPoints: 0, majorCreditsGpa: 0 };
-
-        if (c.is_major) {
-          const pts = gradeMap[c.grade];
-          yearGroups[yearKey].majorCourses.push(c);
-          if (pts !== null && pts !== undefined) {
-            yearGroups[yearKey].majorPoints += pts * c.credits;
-            yearGroups[yearKey].majorCreditsGpa += c.credits;
-          }
-        }
-      });
-
-      const sortedYears = Object.keys(yearGroups).sort();
-      const yearLabels = ["1학년", "2학년", "3학년", "4학년"];
+      const yearGroupList = getAcademicYearGroups(state.courses, state.scale);
       const lines = [];
       const today = new Date().toLocaleDateString("ko-KR");
 
       lines.push(`학년별 전공 성적 요약 (${today} / ${state.scale.toFixed(1)}점 만점)`);
 
-      sortedYears.forEach((yrKey, idx) => {
-        const data = yearGroups[yrKey];
-        const label = yrKey === "미지정"
-          ? "기타/미지정"
-          : (idx < yearLabels.length ? `${yearLabels[idx]}` : `${idx + 1}학년`);
+      yearGroupList.forEach(data => {
         const gpa = data.majorCreditsGpa > 0
           ? (data.majorPoints / data.majorCreditsGpa).toFixed(2)
           : "0.00";
 
         lines.push("");
-        lines.push(`${label} (전공 평점: ${gpa} / ${state.scale.toFixed(2)})`);
+        lines.push(`${data.yearLabel} (${data.semesterRangeStr}) (전공 평점: ${gpa} / ${state.scale.toFixed(2)})`);
 
         if (data.majorCourses.length === 0) {
           lines.push("전공 과목 없음");
@@ -673,21 +648,96 @@ function renderYearBreakdown() {
     return;
   }
 
-  const gradeMap = GRADE_MAPS[state.scale] || GRADE_MAPS[4.5];
-  const yearGroups = {};
+// Academic Year Counter Helper (Counts 1 academic year for every 2 completed semesters)
+function getAcademicYearGroups(courses, scale) {
+  const gradeMap = GRADE_MAPS[scale] || GRADE_MAPS[4.5];
 
-  state.courses.forEach(c => {
-    let yearKey = "미지정";
-    if (c.year_semester) {
-      const match = c.year_semester.match(/(\d{4})년?/);
-      if (match) {
-        yearKey = `${match[1]}년`;
-      }
+  // 1. Group courses by unique semester
+  const semesterMap = {};
+  courses.forEach(c => {
+    const semKey = c.year_semester && c.year_semester.trim() ? c.year_semester.trim() : "미지정";
+    if (!semesterMap[semKey]) {
+      semesterMap[semKey] = [];
     }
+    semesterMap[semKey].push(c);
+  });
 
-    if (!yearGroups[yearKey]) {
-      yearGroups[yearKey] = {
-        year: yearKey,
+  // 2. Sort semesters chronologically
+  function parseSemesterOrder(semStr) {
+    if (!semStr || semStr === "미지정") return 999999;
+    const yrMatch = semStr.match(/(\d{4})/);
+    const yr = yrMatch ? parseInt(yrMatch[1], 10) : 2099;
+    let semWeight = 1;
+    if (semStr.includes("2학기")) semWeight = 2;
+    else if (semStr.includes("여름")) semWeight = 1.5;
+    else if (semStr.includes("겨울")) semWeight = 2.5;
+    return yr * 10 + semWeight;
+  }
+
+  const validSems = Object.keys(semesterMap)
+    .filter(k => k !== "미지정")
+    .sort((a, b) => parseSemesterOrder(a) - parseSemesterOrder(b));
+
+  const unassignedSems = Object.keys(semesterMap).filter(k => k === "미지정");
+
+  const yearGroupList = [];
+  const yearLabels = ["1학년", "2학년", "3학년", "4학년", "5학년 (초과학기)", "6학년 (초과학기)"];
+
+  // 3. Group every 2 semesters into 1 academic year
+  for (let i = 0; i < validSems.length; i += 2) {
+    const semPair = validSems.slice(i, i + 2);
+    const groupIdx = Math.floor(i / 2);
+    const yearLabel = groupIdx < yearLabels.length ? yearLabels[groupIdx] : `${groupIdx + 1}학년`;
+    const semesterRangeStr = semPair.join(" ~ ");
+
+    const groupCourses = [];
+    semPair.forEach(sk => {
+      groupCourses.push(...semesterMap[sk]);
+    });
+
+    const g = {
+      yearLabel,
+      semesterRangeStr,
+      majorCreditsTotal: 0,
+      majorCreditsGpa: 0,
+      majorPoints: 0,
+      overallCreditsTotal: 0,
+      overallCreditsGpa: 0,
+      overallPoints: 0,
+      majorCourses: []
+    };
+
+    groupCourses.forEach(c => {
+      const pts = gradeMap[c.grade];
+      if (c.grade !== "F" && c.grade !== "NP") {
+        g.overallCreditsTotal += c.credits;
+        if (c.is_major) g.majorCreditsTotal += c.credits;
+      }
+      if (pts !== null && pts !== undefined) {
+        g.overallPoints += pts * c.credits;
+        g.overallCreditsGpa += c.credits;
+        if (c.is_major) {
+          g.majorPoints += pts * c.credits;
+          g.majorCreditsGpa += c.credits;
+          g.majorCourses.push({ name: c.name, credits: c.credits, grade: c.grade, pts, classification: c.classification || "" });
+        }
+      } else {
+        if (c.is_major) {
+          g.majorCourses.push({ name: c.name, credits: c.credits, grade: c.grade, pts: null, classification: c.classification || "" });
+        }
+      }
+    });
+
+    yearGroupList.push(g);
+  }
+
+  // Handle unassigned courses
+  if (unassignedSems.length > 0) {
+    const unassignedCourses = semesterMap["미지정"] || [];
+    if (unassignedCourses.length > 0) {
+      const g = {
+        yearLabel: "기타/미지정 학기",
+        semesterRangeStr: "학기 정보 없음",
         majorCreditsTotal: 0,
         majorCreditsGpa: 0,
         majorPoints: 0,
@@ -696,50 +746,57 @@ function renderYearBreakdown() {
         overallPoints: 0,
         majorCourses: []
       };
+      unassignedCourses.forEach(c => {
+        const pts = gradeMap[c.grade];
+        if (c.grade !== "F" && c.grade !== "NP") {
+          g.overallCreditsTotal += c.credits;
+          if (c.is_major) g.majorCreditsTotal += c.credits;
+        }
+        if (pts !== null && pts !== undefined) {
+          g.overallPoints += pts * c.credits;
+          g.overallCreditsGpa += c.credits;
+          if (c.is_major) {
+            g.majorPoints += pts * c.credits;
+            g.majorCreditsGpa += c.credits;
+            g.majorCourses.push({ name: c.name, credits: c.credits, grade: c.grade, pts, classification: c.classification || "" });
+          }
+        } else {
+          if (c.is_major) {
+            g.majorCourses.push({ name: c.name, credits: c.credits, grade: c.grade, pts: null, classification: c.classification || "" });
+          }
+        }
+      });
+      yearGroupList.push(g);
     }
+  }
 
-    const g = yearGroups[yearKey];
-    const pts = gradeMap[c.grade];
+  return yearGroupList;
+}
 
-    if (c.grade !== "F" && c.grade !== "NP") {
-      g.overallCreditsTotal += c.credits;
-      if (c.is_major) g.majorCreditsTotal += c.credits;
-    }
+// Render Academic Year Major Breakdown Cards (2-semester counter per year)
+function renderYearBreakdown() {
+  const grid = document.getElementById("year-breakdown-grid");
+  if (!grid) return;
 
-    if (pts !== null && pts !== undefined) {
-      g.overallPoints += pts * c.credits;
-      g.overallCreditsGpa += c.credits;
+  if (!state.courses || state.courses.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-year-state">
+        <p>등록된 과목이 없어 학년별 분석 데이터가 표시되지 않습니다.</p>
+      </div>
+    `;
+    return;
+  }
 
-      if (c.is_major) {
-        g.majorPoints += pts * c.credits;
-        g.majorCreditsGpa += c.credits;
-        g.majorCourses.push({ name: c.name, credits: c.credits, grade: c.grade, pts, classification: c.classification || "" });
-      }
-    } else {
-      // P/NP 등 평점 미반영 전공 과목도 리스트에 포함
-      if (c.is_major) {
-        g.majorCourses.push({ name: c.name, credits: c.credits, grade: c.grade, pts: null, classification: c.classification || "" });
-      }
-    }
-  });
-
-  const sortedYears = Object.keys(yearGroups).sort();
-  if (sortedYears.length === 0) {
+  const yearGroupList = getAcademicYearGroups(state.courses, state.scale);
+  if (yearGroupList.length === 0) {
     grid.innerHTML = `<div class="empty-year-state"><p>학년별 데이터가 없습니다.</p></div>`;
     return;
   }
 
-  const yearLabels = ["1학년", "2학년", "3학년", "4학년"];
-
   // 레이아웃: 학년별 카드를 세로 전체폭으로 나열
   grid.style.gridTemplateColumns = "1fr";
 
-  grid.innerHTML = sortedYears.map((yrKey, idx) => {
-    const data = yearGroups[yrKey];
-    const gradeLabel = yrKey === "미지정"
-      ? "기타/미지정"
-      : (idx < yearLabels.length ? `${yearLabels[idx]} (${yrKey})` : `${idx + 1}학년 (${yrKey})`);
-
+  grid.innerHTML = yearGroupList.map(data => {
     const majGpa = data.majorCreditsGpa > 0 ? (data.majorPoints / data.majorCreditsGpa).toFixed(2) : "0.00";
     const overallGpa = data.overallCreditsGpa > 0 ? (data.overallPoints / data.overallCreditsGpa).toFixed(2) : "0.00";
 
@@ -754,17 +811,20 @@ function renderYearBreakdown() {
               <td>${escapeHtml(mc.name)} ${clsLabel}</td>
               <td style="text-align:center;">${mc.credits}</td>
               <td style="text-align:center;"><span class="grade-badge ${gradeClass}">${escapeHtml(mc.grade)}</span></td>
-              <td style="text-align:center; font-weight:700; color:#38bdf8;">${ptsDisplay}</td>
+              <td style="text-align:center; font-weight:700; color:var(--ink);">${ptsDisplay}</td>
             </tr>`;
         }).join('')
-      : `<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:10px;">해당 학년 전공 과목 없음</td></tr>`;
+      : `<tr><td colspan="4" style="text-align:center; color:var(--ink-3); padding:10px;">해당 학년 전공 과목 없음</td></tr>`;
 
     return `
       <div class="year-card year-card-full">
         <div class="year-card-header">
-          <span class="year-title">🎓 ${gradeLabel}</span>
+          <div>
+            <span class="year-title">🎓 ${data.yearLabel}</span>
+            <span style="font-family:var(--font-mono); font-size:11.5px; color:var(--ink-2); margin-left:8px;">(${data.semesterRangeStr})</span>
+          </div>
           <div style="display:flex; gap:10px; align-items:center;">
-            <span style="font-size:0.8rem; color:var(--text-muted);">전체 평점 <strong style="color:var(--purple-accent);">${overallGpa}</strong></span>
+            <span style="font-size:0.8rem; color:var(--ink-2);">전체 평점 <strong style="color:var(--ink); font-family:var(--font-mono);">${overallGpa}</strong></span>
             <span class="year-gpa-tag">전공 ${majGpa} / ${state.scale.toFixed(2)}</span>
           </div>
         </div>
@@ -780,7 +840,7 @@ function renderYearBreakdown() {
           </div>
           <div class="year-stat-chip highlight-chip">
             <span class="chip-lbl">전공 평점</span>
-            <span class="chip-val" style="color:#38bdf8;">${majGpa}</span>
+            <span class="chip-val" style="color:var(--ink);">${majGpa}</span>
           </div>
           <div class="year-stat-chip">
             <span class="chip-lbl">전공 과목 수</span>
