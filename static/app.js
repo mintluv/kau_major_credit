@@ -29,12 +29,18 @@ const GRADE_MAPS = {
   }
 };
 
-// Dynamic Backend API URL Resolver for GitHub Pages & Cloudflare
+// Dynamic Backend API URL Resolver for GitHub Pages & Render Cloud
+const DEFAULT_RENDER_BACKEND = "https://kau-major-credit-api.onrender.com";
+
 function getApiUrl(endpoint) {
   let serverUrl = localStorage.getItem("kau_gpa_backend_url") || "";
   serverUrl = serverUrl.trim().replace(/\/+$/, "");
 
-  // If on GitHub Pages and no custom URL is provided, check if stored
+  // If on GitHub Pages and no custom URL is saved, use Render Cloud default
+  if (window.location.hostname.includes("github.io") && !serverUrl) {
+    serverUrl = DEFAULT_RENDER_BACKEND;
+  }
+
   if (serverUrl) {
     return `${serverUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
   }
