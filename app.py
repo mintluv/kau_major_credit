@@ -98,6 +98,14 @@ import json
 async def serve_index():
     return FileResponse("static/index.html")
 
+@app.get("/style.css")
+async def serve_css():
+    return FileResponse("static/style.css", media_type="text/css")
+
+@app.get("/app.js")
+async def serve_js():
+    return FileResponse("static/app.js", media_type="application/javascript")
+
 
 async def run_crawler_core(req: CrawlRequest, emit_log=None):
     """
