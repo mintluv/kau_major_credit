@@ -225,7 +225,7 @@ async def run_crawler_core(req: CrawlRequest, emit_log=None):
                     await log(f"🔑 포털 세션 학번 매핑 완료: {target_emp_no[:4]}****")
 
                     for yr in year_list:
-                        for hk, hk_name in [('10', '1학기'), ('20', '2학기')]:
+                        for hk, hk_name in [('10', '1학기'), ('11', '여름학기'), ('15', '여름학기'), ('20', '2학기'), ('21', '겨울학기'), ('25', '겨울학기')]:
                             try:
                                 await wf.evaluate(f"""() => {{
                                     const s_id = typeof emp_no !== 'undefined' && emp_no ? emp_no : '{target_emp_no}';
@@ -257,17 +257,19 @@ async def run_crawler_core(req: CrawlRequest, emit_log=None):
                                         c_grade = cols[6].upper() if len(cols) > 6 else ""
                                         
                                         if c_name and c_grade and c_grade not in ["본수강", "재수강"]:
-                                            is_maj = any(k in c_class for k in ["전필", "전선", "전공", "Major"])
-                                            courses.append(Course(
-                                                id=str(uuid.uuid4())[:8],
-                                                name=c_name,
-                                                credits=c_credit,
-                                                grade=c_grade,
-                                                is_major=is_maj,
-                                                classification=c_class if c_class else ("전공" if is_maj else "교양"),
-                                                year_semester=f"{yr}년 {hk_name}"
-                                            ))
-                                            sem_collected.append(f"{c_name}({c_credit}학점/{c_grade})")
+                                            sem_label = f"{yr}년 {hk_name}"
+                                            if not any(ec.name == c_name and ec.year_semester == sem_label for ec in courses):
+                                                is_maj = any(k in c_class for k in ["전필", "전선", "전공", "Major"])
+                                                courses.append(Course(
+                                                    id=str(uuid.uuid4())[:8],
+                                                    name=c_name,
+                                                    credits=c_credit,
+                                                    grade=c_grade,
+                                                    is_major=is_maj,
+                                                    classification=c_class if c_class else ("전공" if is_maj else "교양"),
+                                                    year_semester=sem_label
+                                                ))
+                                                sem_collected.append(f"{c_name}({c_credit}학점/{c_grade})")
 
                                 if sem_collected:
                                     await log(f"  ✨ [{yr}년 {hk_name}] {len(sem_collected)}개 과목 수집: {', '.join(sem_collected[:4])}{'...' if len(sem_collected)>4 else ''}")
@@ -293,7 +295,7 @@ async def run_crawler_core(req: CrawlRequest, emit_log=None):
                         if is_search_present:
                             await log(f"✨ 수강신청내역 폼 프레임({f.name or f.url}) 감지 완료")
                             for yr in year_list:
-                                for hk, hk_name in [('10', '1학기'), ('20', '2학기')]:
+                                for hk, hk_name in [('10', '1학기'), ('11', '여름학기'), ('15', '여름학기'), ('20', '2학기'), ('21', '겨울학기'), ('25', '겨울학기')]:
                                     try:
                                         await f.evaluate(f"""() => {{
                                             _my_Page00_SEARCH_FORM.SetValue('SEARCH_HYEAR', '{yr}');

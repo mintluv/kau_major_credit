@@ -847,15 +847,36 @@ function getAcademicYearGroups(courses, scale) {
   const yearGroupList = [];
   const yearLabels = ["1학년", "2학년", "3학년", "4학년", "5학년 (초과학기)", "6학년 (초과학기)"];
 
-  // 3. Group every 2 semesters into 1 academic year
-  for (let i = 0; i < validSems.length; i += 2) {
-    const semPair = validSems.slice(i, i + 2);
-    const groupIdx = Math.floor(i / 2);
+  // 3. Group semesters by 2 regular semesters (1학기, 2학기) per academic year, including seasonal semesters
+  const yearBuckets = [];
+  let currentBucket = { regularCount: 0, sems: [] };
+
+  validSems.forEach(sk => {
+    const isRegular = sk.includes("1학기") || sk.includes("2학기");
+    currentBucket.sems.push(sk);
+
+    if (isRegular) {
+      currentBucket.regularCount += 1;
+    }
+
+    // When 2 regular semesters are completed, finalize this academic year bucket
+    if (currentBucket.regularCount >= 2) {
+      yearBuckets.push(currentBucket);
+      currentBucket = { regularCount: 0, sems: [] };
+    }
+  });
+
+  if (currentBucket.sems.length > 0) {
+    yearBuckets.push(currentBucket);
+  }
+
+  yearBuckets.forEach((bucket, groupIdx) => {
+    const semList = bucket.sems;
     const yearLabel = groupIdx < yearLabels.length ? yearLabels[groupIdx] : `${groupIdx + 1}학년`;
-    const semesterRangeStr = semPair.join(" ~ ");
+    const semesterRangeStr = semList.length > 1 ? `${semList[0]} ~ ${semList[semList.length - 1]}` : (semList[0] || "");
 
     const groupCourses = [];
-    semPair.forEach(sk => {
+    semList.forEach(sk => {
       groupCourses.push(...semesterMap[sk]);
     });
 
