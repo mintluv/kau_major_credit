@@ -29,7 +29,7 @@
 
 ---
 
-## 빠른 시작 가이드
+## 🚀 빠른 시작 가이드
 
 ### 사전 요구사항
 
@@ -74,10 +74,25 @@ python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
 ### 접속
+웹 브라우저에서 `http://127.0.0.1:8000` 접속!
 
-웹 브라우저에서 다음 주소를 엽니다.
+---
 
-http://127.0.0.1:8000
+## 🌐 GitHub Pages + 외부 접속 (Cloudflare Tunnel) 연동
+
+이 프로젝트는 **GitHub Pages 도메인(`https://mintluv.github.io/kau_major_credit/`)**에서 전 세계 어디서든 접속하여 내 컴퓨터의 크롤러를 이용할 수 있도록 설계되었습니다.
+
+1. **GitHub Pages 활성화**:
+   - GitHub 저장소 설정(`Settings` > `Pages`)에서 **Branch: `main` / `/(root)`** 선택 후 `Save`.
+   - 몇 초 후 `https://mintluv.github.io/kau_major_credit/` 주소가 활성화됩니다.
+
+2. **내 컴퓨터에서 터널 서버 실행**:
+   - `start_public_server.bat` 더블 클릭!
+   - 터미널에 출력되는 `https://xxxxx.trycloudflare.com` 주소 확인.
+
+3. **연동 완료**:
+   - GitHub Pages 웹사이트 접속 후 상단 **[⚙️ 서버 연동]** 버튼 클릭
+   - 위 Cloudflare 주소를 입력하고 **[저장하기]**를 누르면 끝! (모바일/외부 PC에서도 자유롭게 크롤링 가능)
 
 ---
 

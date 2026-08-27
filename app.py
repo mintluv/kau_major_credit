@@ -8,7 +8,18 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from bs4 import BeautifulSoup
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="Major GPA Calculator API")
+
+# Enable CORS for GitHub Pages
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount static directory
 app.mount("/static", StaticFiles(directory="static"), name="static")
