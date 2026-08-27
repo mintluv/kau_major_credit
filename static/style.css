@@ -132,11 +132,28 @@ body {
 }
 
 .brand-text p {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--ink-2);
-  margin-top: 3px;
-  letter-spacing: 0.02em;
+  margin-top: 2px;
+}
+
+.security-notice-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  background: #f0fdf4;
+  border: 1.5px solid #22c55e;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #15803d;
+  box-shadow: 2px 2px 0 #15803d;
+}
+
+.security-notice-badge i {
+  color: #16a34a;
 }
 
 .header-meta {
