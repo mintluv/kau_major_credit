@@ -914,7 +914,7 @@ function getAcademicYearGroups(courses, scale) {
     });
 
     yearGroupList.push(g);
-  }
+  });
 
   // Handle unassigned courses
   if (unassignedSems.length > 0) {
