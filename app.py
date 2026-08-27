@@ -244,19 +244,33 @@ async def run_crawler_core(req: CrawlRequest, emit_log=None):
 
                                 for r in soup.find_all("tr"):
                                     cols = [td.get_text(strip=True) for td in r.find_all(["td", "th", "div"])]
-                                    cols = [c for c in cols if c]
-                                    if "폐강" in str(cols):
-                                        await log(f"      🚫 [{yr}년 {hk_name}] 폐강 과목 감지되어 제외: {cols[2] if len(cols)>2 else cols}")
+                                    cols_clean = [c for c in cols if c]
+                                    if "폐강" in str(cols_clean):
+                                        await log(f"      🚫 [{yr}년 {hk_name}] 폐강 과목 감지되어 제외: {cols_clean[2] if len(cols_clean)>2 else cols_clean}")
                                         continue
-                                    if cols and len(cols) >= 7 and cols[0].isdigit():
-                                        c_name = cols[2]
+                                    
+                                    if cols_clean and len(cols_clean) >= 5 and cols_clean[0].isdigit():
+                                        # Detect Course Name, Classification, Credits, Grade dynamically
+                                        c_code = cols_clean[1] if len(cols_clean) > 1 else ""
+                                        c_name = cols_clean[2] if len(cols_clean) > 2 else ""
                                         if c_name in ["과목명", "교과목명", "성적", "학점", "년도", "학수코드"]:
                                             continue
-                                        c_class = cols[4] if len(cols) > 4 else "전공"
-                                        c_credit = float(cols[5]) if len(cols) > 5 and cols[5].replace('.','',1).isdigit() else 3.0
-                                        c_grade = cols[6].upper() if len(cols) > 6 else ""
                                         
-                                        if c_name and c_grade and c_grade not in ["본수강", "재수강"]:
+                                        # Find Grade (A+, A0, B+, B0, C+, C0, D+, D0, F, P, NP)
+                                        c_grade = ""
+                                        c_credit = 3.0
+                                        c_class = "전공"
+                                        
+                                        for val in cols_clean[3:]:
+                                            val_up = val.upper()
+                                            if val_up in ["A+", "A0", "A", "B+", "B0", "B", "C+", "C0", "C", "D+", "D0", "D", "F", "P", "NP"]:
+                                                c_grade = val_up
+                                            elif val.replace('.', '', 1).isdigit() and float(val) in [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]:
+                                                c_credit = float(val)
+                                            elif any(k in val for k in ["전필", "전선", "교필", "교선", "일선", "전공", "교양", "심교", "기교", "Major"]):
+                                                c_class = val
+
+                                        if c_name and c_grade:
                                             sem_label = f"{yr}년 {hk_name}"
                                             if not any(ec.name == c_name and ec.year_semester == sem_label for ec in courses):
                                                 is_maj = any(k in c_class for k in ["전필", "전선", "전공", "Major"])
