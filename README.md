@@ -78,21 +78,22 @@ python -m uvicorn app:app --host 127.0.0.1 --port 8000
 
 ---
 
-## 🌐 GitHub Pages + 외부 접속 (Cloudflare Tunnel) 연동
+## 🌐 외부 접속 + Cloudflare Tunnel 연동
 
-이 프로젝트는 **GitHub Pages 도메인(`https://mintluv.github.io/kau_major_credit/`)**에서 전 세계 어디서든 접속하여 내 컴퓨터의 크롤러를 이용할 수 있도록 설계되었습니다.
+내 컴퓨터를 호스트로 두고, 외부(스마트폰/다른 PC)에서 **`https://mintluv.github.io/kau_major_credit/`** 에 접속했을 때 내 컴퓨터 백엔드가 크롤링하도록 연동할 수 있습니다.
 
-1. **GitHub Pages 활성화**:
-   - GitHub 저장소 설정(`Settings` > `Pages`)에서 **Branch: `main` / `/(root)`** 선택 후 `Save`.
-   - 몇 초 후 `https://mintluv.github.io/kau_major_credit/` 주소가 활성화됩니다.
+### 사용 방법
 
-2. **내 컴퓨터에서 터널 서버 실행**:
-   - `start_public_server.bat` 더블 클릭!
-   - 터미널에 출력되는 `https://xxxxx.trycloudflare.com` 주소 확인.
+1. 내 컴퓨터에서 **`start_public_server.bat`** 파일을 더블 클릭하여 실행합니다.
+   - Cloudflare Tunnel이 자동 실행되며 터미널에 `https://xxxx.trycloudflare.com` 주소가 출력됩니다.
+2. 외부에서 **`https://mintluv.github.io/kau_major_credit/`** 에 접속합니다.
+3. 상단 우측의 **[⚙️ 서버 연동]** 메뉴를 열고 위 Cloudflare 주소를 입력하면 내 컴퓨터 백엔드와 즉시 연결됩니다!
 
-3. **연동 완료**:
-   - GitHub Pages 웹사이트 접속 후 상단 **[⚙️ 서버 연동]** 버튼 클릭
-   - 위 Cloudflare 주소를 입력하고 **[저장하기]**를 누르면 끝! (모바일/외부 PC에서도 자유롭게 크롤링 가능)
+---
+
+## 💻 내 컴퓨터 로컬 전용 실행
+
+외부 연동 없이 내 컴퓨터에서만 사용할 때는 **`run_local_server.bat`** 파일을 더블 클릭하면 브라우저가 즉시 열립니다. (http://127.0.0.1:8000)
 
 ---
 

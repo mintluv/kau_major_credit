@@ -29,17 +29,41 @@ const GRADE_MAPS = {
   }
 };
 
-// Dynamic Backend API URL Resolver for GitHub Pages & Render Cloud
-const DEFAULT_RENDER_BACKEND = "https://kau-major-credit-api.onrender.com";
+// Dynamic Backend API URL Resolver for GitHub Pages & Cloudflare Tunnel
+let autoDetectedBackendUrl = "";
+
+async function loadAutoBackendUrl() {
+  try {
+    const res = await fetch(`backend_url.json?t=${Date.now()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.backend_url) {
+        autoDetectedBackendUrl = data.backend_url.trim().replace(/\/+$/, "");
+        console.log("🔗 Auto-detected live backend URL:", autoDetectedBackendUrl);
+        updateServerBadge();
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
+function updateServerBadge() {
+  const badge = document.getElementById("server-status-badge");
+  const activeUrl = localStorage.getItem("kau_gpa_backend_url") || autoDetectedBackendUrl;
+  if (badge) {
+    if (activeUrl) {
+      badge.innerHTML = `<span style="color:#22c55e;">●</span> 서버 연동됨`;
+      badge.title = `연결 주소: ${activeUrl}`;
+    } else {
+      badge.innerHTML = `<span style="color:#94a3b8;">○</span> 로컬 모드`;
+    }
+  }
+}
 
 function getApiUrl(endpoint) {
-  let serverUrl = localStorage.getItem("kau_gpa_backend_url") || "";
+  let serverUrl = localStorage.getItem("kau_gpa_backend_url") || autoDetectedBackendUrl || "";
   serverUrl = serverUrl.trim().replace(/\/+$/, "");
-
-  // If on GitHub Pages and no custom URL is saved, use Render Cloud default
-  if (window.location.hostname.includes("github.io") && !serverUrl) {
-    serverUrl = DEFAULT_RENDER_BACKEND;
-  }
 
   if (serverUrl) {
     return `${serverUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
@@ -48,6 +72,7 @@ function getApiUrl(endpoint) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  loadAutoBackendUrl();
   initPresets();
   initTabs();
   initAdvancedToggle();
@@ -193,7 +218,10 @@ function initForms() {
       try {
         const res = await fetch(getApiUrl("/api/parse-text"), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "ngrok-skip-browser-warning": "69420"
+          },
           body: JSON.stringify({ text })
         });
         const data = await res.json();
@@ -320,7 +348,10 @@ window.handleCrawl = async function() {
     // Attempt real-time SSE streaming
     const response = await fetch(getApiUrl("/api/crawl-stream"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "69420"
+      },
       body: JSON.stringify(payload)
     });
 
@@ -388,7 +419,10 @@ window.handleCrawl = async function() {
     try {
       const fbRes = await fetch(getApiUrl("/api/crawl"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "69420"
+        },
         body: JSON.stringify(payload)
       });
       const data = await fbRes.json();
@@ -470,7 +504,7 @@ function initToolbar() {
     });
   }
 
-  // Load KAU Student 2018124205 Full Sample
+  // Load KAU Student Example Sample Data
   const btnLoadSample = document.getElementById("btn-load-sample");
   if (btnLoadSample) {
     btnLoadSample.addEventListener("click", (e) => {
@@ -655,7 +689,10 @@ function initSimulator() {
     try {
       const res = await fetch(getApiUrl("/api/simulate-goal"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "69420"
+        },
         body: JSON.stringify({
           current_major_gpa: curMajorGpa,
           current_major_credits: curCredits,

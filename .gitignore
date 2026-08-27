@@ -39,6 +39,10 @@ kau_student_all_courses_letter_grades.json
 *.swp
 *.swo
 
+# Executables & Binaries
+*.exe
+*.zip
+
 # OS
 .DS_Store
 Thumbs.db

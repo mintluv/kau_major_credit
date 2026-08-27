@@ -33,7 +33,7 @@
               🏫 타 대학교
             </button>
             <button type="button" class="btn btn-outline btn-sm" id="btn-server-config" title="외부 백엔드 서버(Cloudflare) 연결 설정" style="font-size:0.78rem;background:var(--watch-paper);">
-              ⚙️ 서버 연동
+              <span id="server-status-badge"><span style="color:#94a3b8;">○</span> 서버 연동</span>
             </button>
           </div>
         </div>
@@ -44,8 +44,9 @@
     <dialog id="server-config-dialog" class="sponsor-dialog" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:999;border:var(--border);border-radius:var(--radius);background:var(--paper);padding:24px;box-shadow:var(--shadow-lg);width:min(480px,90vw);">
       <h2 style="font-family:var(--font-display);font-size:20px;margin-bottom:8px;">🔗 백엔드 서버(Cloudflare) 연동</h2>
       <p style="font-size:12.5px;color:var(--ink-2);margin-bottom:14px;">
-        GitHub Pages(<span style="font-family:var(--font-mono);font-weight:700;">github.io</span>)에서 크롤러를 이용하려면 본인 컴퓨터에서 실행한 Cloudflare Tunnel 주소를 입력해 주세요. (로컬 접속 시에는 비워두셔도 됩니다)
+        GitHub Pages(<span style="font-family:var(--font-mono);font-weight:700;">github.io</span>)에서 크롤러를 이용하려면 내 컴퓨터에서 실행한 Cloudflare Tunnel 주소를 입력해 주세요. (로컬 접속 시에는 비워두셔도 됩니다)
       </p>
+
       <div class="form-group">
         <label for="input-backend-url">Cloudflare Tunnel 주소 (예: https://xxxx.trycloudflare.com)</label>
         <input type="url" id="input-backend-url" placeholder="https://xxxx.trycloudflare.com">
