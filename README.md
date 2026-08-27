@@ -73,31 +73,20 @@ python -m playwright install chromium
 python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-### 접속
-웹 브라우저에서 `http://127.0.0.1:8000` 접속!
-
----
-
-## 🌐 외부 접속 + Cloudflare Tunnel 자동 연동
-
-내 컴퓨터를 호스트로 두고, 외부(스마트폰/다른 PC)에서 **`https://mintluv.github.io/kau_major_credit/`** 에 접속했을 때 내 컴퓨터 백엔드가 크롤링하도록 연동할 수 있습니다.
-
-### 실행 방법
-
-```bash
-python start_public_server.py
-```
-- Cloudflare Tunnel이 자동 실행되며 최신 접속 주소가 GitHub에 실시간 동기화됩니다.
-- 외부 어디서든 **`https://mintluv.github.io/kau_major_credit/`** 에 접속하면 100% 자동 직결됩니다!
-
----
-
-## 💻 내 컴퓨터 로컬 전용 실행
+### 2. 웹앱 실행
 
 ```bash
 python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
+
 웹 브라우저에서 `http://127.0.0.1:8000` 접속!
+
+---
+
+## 🌐 GitHub Pages 정적 웹사이트
+
+웹 애플리케이션 프론트엔드는 GitHub Pages를 통해 배포되어 있습니다:
+👉 **https://mintluv.github.io/kau_major_credit/**
 
 ---
 

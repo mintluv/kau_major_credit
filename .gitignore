@@ -39,10 +39,11 @@ kau_student_all_courses_letter_grades.json
 *.swp
 *.swo
 
-# Executables & Local Scripts
+# Executables & Local Launchers
 *.exe
 *.zip
 *.bat
+start_public_server.py
 
 # OS
 .DS_Store
