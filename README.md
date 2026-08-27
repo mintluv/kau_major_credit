@@ -31,26 +31,53 @@
 
 ## 빠른 시작 가이드
 
-### 1. 저장소 클론 및 패키지 설치
+### 사전 요구사항
+
+- Python 3.10 이상
+- Git
+- Chromium을 다운로드할 수 있는 인터넷 연결
+
+### Windows PowerShell
+
+```powershell
+git clone https://github.com/mintluv/kau_major_credit.git
+cd kau_major_credit
+
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+python -m pip install -r requirements.txt
+python -m playwright install chromium
+
+python -m uvicorn app:app --host 127.0.0.1 --port 8000
+```
+
+PowerShell에서 스크립트 실행이 차단되면 다음 명령을 한 번 실행하세요.
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+### macOS / Linux
 
 ```bash
 git clone https://github.com/mintluv/kau_major_credit.git
 cd kau_major_credit
 
-# 필수 패키지 설치
-pip install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
 
-# Playwright 브라우저 바이너리 설치 (최초 1회)
-playwright install chromium
-```
+python -m pip install -r requirements.txt
+python -m playwright install chromium
 
-### 2. 웹앱 실행
-
-```bash
 python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-웹 브라우저에서 `http://127.0.0.1:8000` 접속!
+### 접속
+
+웹 브라우저에서 다음 주소를 엽니다.
+
+http://127.0.0.1:8000
 
 ---
 
