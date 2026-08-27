@@ -156,6 +156,18 @@ body {
   color: #16a34a;
 }
 
+.security-gh-link {
+  color: #15803d;
+  font-weight: 700;
+  text-decoration: underline;
+  margin-left: 2px;
+  transition: color 0.15s ease;
+}
+
+.security-gh-link:hover {
+  color: #0f172a;
+}
+
 .header-meta {
   display: flex;
   gap: 10px;
