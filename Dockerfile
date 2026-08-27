@@ -1,18 +1,21 @@
-# Official Playwright Python image containing all browser binaries & dependencies
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Python requirements
+# Set non-interactive debconf
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Playwright browser and all Linux OS dependencies
+RUN playwright install --with-deps chromium
 
 # Copy application files
 COPY . .
 
-# Expose port (Render automatically assigns PORT env variable)
 ENV PORT=8000
 EXPOSE 8000
 
-# Start Uvicorn server
 CMD uvicorn app:app --host 0.0.0.0 --port $PORT
