@@ -62,7 +62,7 @@ function updateServerBadge() {
 }
 
 function getApiUrl(endpoint) {
-  let serverUrl = localStorage.getItem("kau_gpa_backend_url") || autoDetectedBackendUrl || "";
+  let serverUrl = autoDetectedBackendUrl || localStorage.getItem("kau_gpa_backend_url") || "";
   serverUrl = serverUrl.trim().replace(/\/+$/, "");
 
   if (serverUrl) {
