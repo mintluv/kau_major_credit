@@ -78,22 +78,26 @@ python -m uvicorn app:app --host 127.0.0.1 --port 8000
 
 ---
 
-## 🌐 외부 접속 + Cloudflare Tunnel 연동
+## 🌐 외부 접속 + Cloudflare Tunnel 자동 연동
 
 내 컴퓨터를 호스트로 두고, 외부(스마트폰/다른 PC)에서 **`https://mintluv.github.io/kau_major_credit/`** 에 접속했을 때 내 컴퓨터 백엔드가 크롤링하도록 연동할 수 있습니다.
 
-### 사용 방법
+### 실행 방법
 
-1. 내 컴퓨터에서 **`start_public_server.bat`** 파일을 더블 클릭하여 실행합니다.
-   - Cloudflare Tunnel이 자동 실행되며 터미널에 `https://xxxx.trycloudflare.com` 주소가 출력됩니다.
-2. 외부에서 **`https://mintluv.github.io/kau_major_credit/`** 에 접속합니다.
-3. 상단 우측의 **[⚙️ 서버 연동]** 메뉴를 열고 위 Cloudflare 주소를 입력하면 내 컴퓨터 백엔드와 즉시 연결됩니다!
+```bash
+python start_public_server.py
+```
+- Cloudflare Tunnel이 자동 실행되며 최신 접속 주소가 GitHub에 실시간 동기화됩니다.
+- 외부 어디서든 **`https://mintluv.github.io/kau_major_credit/`** 에 접속하면 100% 자동 직결됩니다!
 
 ---
 
 ## 💻 내 컴퓨터 로컬 전용 실행
 
-외부 연동 없이 내 컴퓨터에서만 사용할 때는 **`run_local_server.bat`** 파일을 더블 클릭하면 브라우저가 즉시 열립니다. (http://127.0.0.1:8000)
+```bash
+python -m uvicorn app:app --host 127.0.0.1 --port 8000
+```
+웹 브라우저에서 `http://127.0.0.1:8000` 접속!
 
 ---
 
