@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="style.css?v=20260827_v2">
   <link rel="stylesheet" href="./style.css?v=20260827_v2">
+  <!-- SheetJS for Excel (.xlsx) Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
   <div class="app-container">
@@ -261,10 +263,13 @@
           </div>
           <div class="toolbar-right">
             <button type="button" class="btn btn-outline btn-sm" id="btn-load-sample">
-              <i class="fa-solid fa-vial"></i> 예시 데이터 불러오기
+              <i class="fa-solid fa-vial"></i> 예시 데이터
             </button>
-            <button type="button" class="btn btn-outline btn-sm" id="btn-export-json">
-                <i class="fa-solid fa-file-lines"></i> 성적 내보내기
+            <button type="button" class="btn btn-sm" id="btn-export-excel" style="background:#0c4da2;border:1.5px solid #08336c;color:#ffffff;font-weight:700;box-shadow:2px 2px 0 #08336c;" title="삼성 채용 성적입력용 Excel (.xlsx) 다운로드">
+              <i class="fa-solid fa-file-excel"></i> 📊 Excel 내보내기 (삼성)
+            </button>
+            <button type="button" class="btn btn-sm" id="btn-export-json" style="background:#e13b00;border:1.5px solid #a82b00;color:#ffffff;font-weight:700;box-shadow:2px 2px 0 #a82b00;" title="SK하이닉스 채용 성적입력용 텍스트 (.txt) 요약본 다운로드">
+              <i class="fa-solid fa-file-lines"></i> 📄 텍스트 요약 (하이닉스)
             </button>
             <button type="button" class="btn btn-outline btn-sm" id="btn-import-json">
               <i class="fa-solid fa-file-import"></i> 불러오기
@@ -351,6 +356,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=20260827_v5"></script>
+  <script src="app.js?v=20260828_v1"></script>
 </body>
 </html>

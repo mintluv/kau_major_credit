@@ -40,6 +40,8 @@ class Course(BaseModel):
     is_major: bool = True
     classification: str = "전공"
     year_semester: Optional[str] = ""
+    code: Optional[str] = ""
+    retake: Optional[str] = "본수강"
 
 
 class CrawlRequest(BaseModel):
@@ -256,10 +258,11 @@ async def run_crawler_core(req: CrawlRequest, emit_log=None):
                                         if c_name in ["과목명", "교과목명", "성적", "학점", "년도", "학수코드"]:
                                             continue
                                         
-                                        # Find Grade (A+, A0, B+, B0, C+, C0, D+, D0, F, P, NP)
+                                        # Find Grade (A+, A0, B+, B0, C+, C0, D+, D0, F, P, NP), Classification, Credits, Retake
                                         c_grade = ""
                                         c_credit = 3.0
                                         c_class = "전공"
+                                        c_retake = "본수강"
                                         
                                         for val in cols_clean[3:]:
                                             val_up = val.upper()
@@ -269,6 +272,10 @@ async def run_crawler_core(req: CrawlRequest, emit_log=None):
                                                 c_credit = float(val)
                                             elif any(k in val for k in ["전필", "전선", "교필", "교선", "일선", "전공", "교양", "심교", "기교", "Major"]):
                                                 c_class = val
+                                            elif "재수강" in val:
+                                                c_retake = "재수강"
+                                            elif "본수강" in val:
+                                                c_retake = "본수강"
 
                                         if c_name and c_grade:
                                             sem_label = f"{yr}년 {hk_name}"
@@ -281,7 +288,9 @@ async def run_crawler_core(req: CrawlRequest, emit_log=None):
                                                     grade=c_grade,
                                                     is_major=is_maj,
                                                     classification=c_class if c_class else ("전공" if is_maj else "교양"),
-                                                    year_semester=sem_label
+                                                    year_semester=sem_label,
+                                                    code=c_code,
+                                                    retake=c_retake
                                                 ))
                                                 sem_collected.append(f"{c_name}({c_credit}학점/{c_grade})")
 
